@@ -23,30 +23,6 @@ python run_pretrain.py \
   --train_epochs 200
 ```
 
-```shell
-model_name=GPT4TS
-python -u run_traj.py \
-  --task_name pretrain \
-  --is_training 1 \
-  --root_path ../dataset/ \
-  --city xa \
-  --freq s\
-  --mask_rate 0.7 \
-  --model $model_name \
-  --data Traj \
-  --use_multi_gpu \
-  --devices '4,5' \
-  --gpt_layers 12 \
-  --batch_size  128\
-  --d_model 768 \
-  --des 'Exp' \
-  --itr 1 \
-  --mlp 1 \
-  --learning_rate 2e-4 \
-  --train_epochs 200 \
-```
-
-
 
 Task Oriented Prompt Tuning
 
