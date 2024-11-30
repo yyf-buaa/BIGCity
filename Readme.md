@@ -1,77 +1,93 @@
-# BIGCity: A Versatile Model for Unified Multi-level Spatiotemporal Data Analysis
+# BIGCity
+
+# Motivation：
+The novelty of this paper is using a unified model to handle tasks involving both "trajectory" and "traffic state." Applications like navigation apps require both data types—users need traffic predictions and optimal paths (trajectories). Fundamentally, traffic states are derived from individual trajectories, so integrating them enhances model performance. This was often overlooked in prior research, and we fill that gap.
+
+<div align="center"><img src=image/Article/MTSD_Model.png width=100% /> <figcaption>Figure 1 : The Comparison Between BIGCity and Traditional ST Models</figcaption> </div>
+
+<br>
+
+<bf>
+
+As shown in the Figure 1, BIGCity is a MTMD model. Traffic state tasks contains one-step prediction (O-Step), multi-step prediction (M-Step), and traffic state imputation (TSI); Trajectory tasks includes travel time estimation (TTE), next hop prediction (NexH), most similar trajectory search (Simi), trajectory classification (CLAS), and trajectory recovery (Reco).
+
+# Challenges:
+The main challenges lies in how to unify heterogeneous data and heterogeneous task.
+1. Heterogeneous data are originally in different data format, and it is difficult to unified data representation.   
+2. Heterogeneous task are in various complexity, and it is difficult to adopt the same model into different ST tasks.
+
+# Contribution:
+1. Unified spatiotemporal data representation (Section IV)
+2. Task-Oriented Prompts for diverse tasks adaption  (Section V)
+3. Unified training strategy (Section VI)
 
 
+# Methods：
 
-## Methods：
-
-### 1. Unified spatiotemporal data representation(Section 2.1, Section 3.1)
+## 1. Unified spatiotemporal data representation (Section IV)
 
 We proposed STUnit, and ST tokenizer.
 
-In our datasets, hetero data all originate from the city's road network, which is structured as a graph. Each node in road network contains both static road segment information and dynamic traffic states.
+Hetero data all originate from the city's road network, and each node in road network contains both static road segment information and dynamic traffic states. Therefore, we developed the **ST tokenizer** to represent the road network.
 
-Therefore, we developed the **ST tokenizer** to represent the road network.
+### 1) The representation of road network
 
-#### 1) The representation of road network
+As Shown in Figure 2, ST tokenizer incorporates a static encoder and a dynamic encoder to separately model these static and dynamic features. Additionally, we designed a fusion encoder to integrate these two representations, generating dynamic road network representation.
 
-As Shown in Figure 1, ST tokenizer incorporates a static encoder and a dynamic encoder to separately model these static and dynamic features. Additionally, we designed a fusion encoder to integrate these two representations, generating dynamic road network representation.
+<div align="center"><img src=image/Article/model_architecture.png width=70% /> <figcaption>Figure 2 : The Architecture of BIGCity</figcaption> </div>
 
-<div align="center"><img src=image/Article/Figure1.png width=80% /></div>
+### 2) The representation of ST data
 
-#### 2) The representation of ST data
-
-As shown in Figure 2, We find that either trajectory and traffic state is essentially a sequence, sampling from the dynamic road network. 
-
+As shown in Figure 3, We find that either trajectory and traffic state is essentially a sequence, sampling from the dynamic road network. 
 From that view, the most difference between trajectory and traffic state lies in sampling manner
-
 Therefore, we designed STUnit to unified both trajectory and traffic state data into sequence format.
 
-<div align="center"><img src=image/Article/Figure2.png width=80% /></div>
+<div align="center"><img src=image/Article/Figure2.png width=70% /> <figcaption>Figure 3 : From STunit to ST feature Tokens </figcaption> </div>
 
+<br>
 
 By integrating STUnit and the ST tokenizer, both trajectory and traffic states are commonly represented as feature sequence. 
-
 Therefore, all tasks can be trained in sequence modeling manner.
-
 Considering the strong sequence modeling capabilities of GPT-2, we selected it as the backbone of our model.
 
-
-<div align="center"><img src=image/Article/Figure3.png width=80% /></div>
-
-### 2. A task representation approach based on textual instructions (Subsection "Input" in Section 3.2, Section 4.2)
+## 2. Task-oriented Prompts (Section V)
 
 It is difficult for a model to identify the specific task type just according to the spatiotemporal data, because various task may share the same ST input.
-
-To address this, we introduce an instruction mechanism that serves as a task identifier. 
+To address this, we introduce task-oriented prompts that serve as a task identifier. 
 
 Based on this approach, data from multiple spatiotemporal tasks can be integrated into a single dataset for joint training.
 
-Specifically :
+Specifically : we first categorize ST tasks into four major types (see in paper's Table 1), with the outputs summarized into two forms: classification of static discrete road segment IDs and regression of continous dynamic features. Accordingly, we define task placeholders as [CLAS] for classification and [REG] for regression.
 
-we categorize ST tasks into four major types (see in paper's Table 1), with the outputs summarized into two forms: classification of static road segment IDs and regression of dynamic features. Accordingly, we define task placeholders as [CLS] for classification and [REG] for regression.
+Then, we designed task placeholders to act as output markers, indicating the type and quantity of outputs for each task. Further, we provide individual prompt templates for each task to specify the task type. Details of these templates can be found in the section V.A. The following figures show templates in certain tasks as examples.
 
-First, we designed task placeholders to act as output markers, indicating the type and quantity of outputs for each task. Additionally, we provide individual textual instruction templates for each task to specify the task type. Details of these templates can be found in the Appendix, and section 4.2
+<div align="center"><img src=image/Article/template_1.png width=90% /></div>
 
-### 3. three-step hierarchical learning strategy (Section 4)
+<br>
 
-Heterogeneous tasks differ in complexity and training paradigm. For instance, generation tasks produce sequences as outputs, using sequence labels as supervision, while classification and regression tasks rely on single-value labels for supervision.
+<div align="center"><img src=image/Article/template_2.png width=90% /> <figcaption>Figure 4 : Examples of Prompt Temples </figcaption> </div>
 
-To address these challenges, we designed a three-stage training process:
+## 3. Model Training (Section VI)
 
-Pre-training: In this stage, only spatiotemporal data (ST data) and task placeholders are involved.
+BIGCity employs a two-stage training strategy:
 
-Prompt tuning: With the aid of textual instructions, the model is jointly fine-tuned on omultiple tasks, 
-After this stage, model is able to handle classification, regression tasks.
+1. Masked Reconstruction Training: In this stage, only spatiotemporal data (ST data) and task placeholders are involved. BIGCity is trained to generate general ST representations.
 
-Reinforcement Learning (RL): In the final stage, RL is introduced to specifically enhance the model's performance on sequence-labeling tasks, such as generation.
-
+2. Task-Oriented Prompt Tuning: Prompt tuning: With the aid of task-oriented prompts, the model is jointly fine-tuned on omultiple tasks. After this stage, model is capable of multi-task ability.
 
 
-## Training
+<div align="center"><img src=image/Article/training.png width=90% /> <figcaption>Figure 5 : The training of BIGCity </figcaption> </div>
 
-#### Requirements
 
-The following command creates a conda environment named bigst
+<br>
+
+<br>
+
+# Training
+
+### Requirements
+
+The following command creates a conda environment named BIGCity
 
 ```shell
 conda env create -f environment.yml
@@ -79,7 +95,7 @@ conda env create -f environment.yml
 
 
 
-#### stage1:  Pretrain
+### stage1:  Mased Renconstruction Training
 
 ```shell
 model_name=GPT4TS
@@ -106,7 +122,7 @@ python run_pretrain.py \
 
 
 
-#### stage2:  Task Oriented Prompt Tuning
+### stage2:  Task Oriented Prompt Tuning
 
 ```shell
 model_name=GPT4Finetune
@@ -132,7 +148,7 @@ python -u run_traj.py \
 
 
 
-#### Description of command line parameters
+### Description of command line parameters
 
 - `--task_name`: Task name, options include: long-term forecast, short-term forecast, imputation, classification, anomaly detection, etc.
 - `--is_training`: Whether in training state (1 means yes, 0 means no).
@@ -183,3 +199,70 @@ python -u run_traj.py \
 - `--checkpoint_name`: Name of a specific checkpoint.
 - `--gpt2_checkpoint_name`: GPT-2 model checkpoint name.
 - `--sample_rate`: Sampling rate.
+
+
+
+
+
+
+
+
+
+
+# standard deviation:
+
+We listed the error bar of BIGCity on each metrics of each task among all three city dataset. The details are presented in the following table:
+
+Performance on the trajectory-based non-generative tasks:
+
+|            | BJ         | XA          | CD         |
+| ---------- | ---------- | ----------- | ---------- |
+| TTE_MAE    | 8.87±0.02  | 1.72±7E-3   | 1.29±5E-3  |
+| TTE_RMSE   | 33.21±0.31 | 2.61±0.01   | 2.18±3E-3  |
+| TTE_MAPE   | 30.34±0.15 | 29.76 ±0.28 | 28.59±0.17 |
+| CLAS_ACC   | 0.872±8E-4 | 0.110±9E-4  | 0.153±8E-4 |
+| CLAS_F1    | 0.891±6E-4 | 0.104±3E-4  | 0.169±9E-4 |
+| CLAS_AUC   | 0.909±7E-4 | 0.113±2E-4  | 0.162±8E-4 |
+| Next_ACC   | 0.751±1E-3 | 0.837±3E-3  | 0.821±2E-3 |
+| Next_MRR@5 | 0.855±2E-3 | 0.923±3E-3  | 0.910±1E-3 |
+| Next_NDC@5 | 0.902±2E-3 | 0.940±5E-3  | 0.938±2E-3 |
+| Sim_HR@1   | 0.801±7E-4 | 0.791±3E-4  | 0.646±4E-4 |
+| Sim_HR@5   | 0.895±3E-4 | 0.887±4E-4  | 0.787±9E-5 |
+| Sim_HR@10  | 0.952±4E-4 | 0.909 ±5E-4 | 0.821±2E-4 |
+
+
+Performance on Trajectory Recovery ( Accuracy ) : 
+
+| 85%        | 90%        | 95%        | 85%        | 90%        | 95%        | 85%        | 90%        | 95%        | 
+| ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | 
+| 0.52±8E-3 | 0.47±4E-3 | 0.37±5E-3 | 0.56±1E-3 | 0.49±9E-4 | 0.38±2E-3 | 0.56±7E-4 | 0.51±7E-3 | 0.41±6E-3 |
+
+
+Performance on Trajectory Recovery ( Macro-F1 ) : 
+
+| 85%        | 90%        | 95%        | 85%        | 90%        | 95%        | 85%        | 90%        | 95%        |
+| ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | 
+|0.259±2E-4 | 0.217±1E-4 | 0.177±2E-4 | 0.309±2E-4 | 0.258±3E-4 | 0.194±4E-4 | 0.321±6E-4 | 0.269±5E-4 | 0.212±5E-4 |
+
+The Performance in One-Step Traffic State Prediction:
+
+| MAE       | MAPE      |    RMSE   |    MAE    |    MAPE    | RMSE      | 
+| --------- | --------- | --------- | --------- | ---------- | --------- | 
+| 0.79±2E-3 | 9.73±3E-2 | 1.74±1E-3 | 1.12±2E-3 | 11.16±6E-1 | 2.10±4E-3 | 
+
+
+The Performance in Multi-Step Traffic State Prediction:
+
+| MAE       | MAPE       |  RMSE     |   MAE     |   MAPE     |    RMSE   |
+| --------- | ---------- | --------- | --------- | ---------- | --------- |
+| 1.16±3E-3 | 14.01±4E-2 | 2.14±4E-3 | 1.41±2E-3 | 15.98±2E-1 | 2.47±3E-3 |
+
+
+
+The Performance in Multi-Step Traffic State Imputation:
+
+| MAE       | MAPE       |  RMSE     |   MAE     |   MAPE     |    RMSE   |
+| --------- | ---------- | --------- | --------- | ---------- | --------- |
+| 0.536±2E-3 | 6.671±5E-2 | 1.335±2E-3 | 0.665±1E-3 | 8.192±3E-1 | 1.617±8E-4 |
+
+# BIGCity
