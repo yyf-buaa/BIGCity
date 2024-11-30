@@ -1,0 +1,7 @@
+log/
+runs/
+models/gpt2/
+__pycache__/
+*/.DS_Store
+*.sh
+**/.DS_Store
