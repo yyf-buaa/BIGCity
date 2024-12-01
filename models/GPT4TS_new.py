@@ -2,106 +2,166 @@ import torch
 import logging
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_geometric.nn import GATConv
+import numpy as np
+import pandas as pd
 
-class ST_Tokenizer(nn.Module):
-    def __init__(self, city):
-        self.city = city
-        super(ST_Tokenizer, self).__init__()
-        self._load_geo()
-        self._load_rel()
-        max_size = torch.max(self.static_embedding, dim=0).values
-        print(self.static_embedding[:10, :])
-        print("ssssssssssssssss", self.static_embedding.shape)
-        self.static_embedding_layers = nn.ModuleList(
-            [nn.Embedding(num_embeddings=size+1, embedding_dim=128) 
-             for size in max_size]
-        )
-        print(self.static_embedding_layers)
-        print("##############", self.static_embedding.shape, self.static_embedding.shape[1]*128)
-        self.spatial_encoder = nn.Sequential(
-            MLP(input_size=self.static_embedding.shape[1]*128, hidden_size=128, output_size=128),
-            GAT(in_channels=128, out_channels=128, heads=2),
-            MLP(input_size=128, hidden_size=128, output_size=128)
-        )
-        # dynamic embedding
-        self.dynamic_embedding = torch.from_numpy(np.load('/home/wangwenrui/dataset/{}/road_dyna_embedding.npy'.format(city))).float() # N*T*d
-        print("ddddddddddddddddd", self.dynamic_embedding.shape)
-        N, T, d = self.dynamic_embedding.shape
-        kernel_size = 1
-        padding = (kernel_size - 1) // 2
-        self.conv = nn.Conv1d(in_channels=d, out_channels=d, kernel_size=kernel_size, padding=padding)
-        self.global_attn = GlobalAttnLayer(2*d, d, 8)
+from config import data_filename
 
-    def forward(self):
-        self.device = self.conv.weight.device
-        self.static_embedding = self.static_embedding.to(self.device) # N * d
-        self.edge_index = torch.from_numpy(self.edge_index).to(self.device)
-        self.edge_weight = torch.from_numpy(self.edge_weight).to(self.device)
-        self.static_embedding = torch.cat([self.static_embedding_layers[i](self.static_embedding[:, i]) for i in range(self.static_embedding.size(1))], dim=1)
-        print("@@@@@", self.static_embedding.shape)
-        self.static_embedding = self.spatial_encoder[0](self.static_embedding)
-        self.static_embedding = self.spatial_encoder[1](self.static_embedding, self.edge_index, self.edge_weight)
-        self.static_embedding = self.spatial_encoder[2](self.static_embedding)
+from tqdm import tqdm
 
-        dynamic_embedding = self.dynamic_embedding.permute(0, 2, 1).to(self.device)  # N*d*T
-        # import ipdb
-        # ipdb.set_trace()
-        # 显存太大，分批次进行
-        # batch_size = 16
-        # N = dynamic_embedding.size(0)
-        # num_batches = (N + batch_size - 1) // batch_size  
-        # conv_results = []
-        # for i in range(num_batches):
-        #     start_idx = i * batch_size
-        #     end_idx = min((i + 1) * batch_size, N)
-        #     batch_embedding = dynamic_embedding[start_idx:end_idx].to(self.device)
-        #     batch_output = self.conv(batch_embedding)
-        #     batch_embedding.to('cpu')
-        #     conv_results.append(batch_output)
-        # logging.info(f"length of conv_results: {len(conv_results)}")
-        # logging.info(f"each one of conv_results: {conv_results[0].shape}")
-        # dynamic_embedding = torch.cat(conv_results, dim=0)
-        print(dynamic_embedding.shape)
-        dynamic_embedding = self.conv(dynamic_embedding)
-        print(dynamic_embedding.shape)
-        self.static_embedding = self.static_embedding.unsqueeze(2).repeat(1, 1, dynamic_embedding.shape[-1])
-        print("**********", self.static_embedding.shape, self.dynamic_embedding.shape)
-        print("**********", self.static_embedding.permute(0, 2, 1).shape, self.dynamic_embedding.permute(0, 2, 1).shape)
-        road_embedding = torch.cat((self.static_embedding.permute(0, 2, 1), dynamic_embedding.permute(0, 2, 1)), dim=-1)
-        print("********", road_embedding.shape)
-        # road_embedding = self.global_attn(road_embedding,road_embedding) # N * T * d
-        N, T, d = road_embedding.shape
-        special_token = torch.zeros(4, T, d).to(self.device)
-        for i in range(4):
-            special_token[i] = i
-        road_embedding = torch.cat((road_embedding, special_token),dim=0)
-        return road_embedding # N+4 * T * d
-    
-    def _load_geo(self):
-        """ read the static features of roads """
-        self.feature_file = '../dataset/{}/roadmap_{}/road_features_{}.csv'.format(self.city, self.city, self.city)
-        feature_file = pd.read_csv(self.feature_file)
-        self.static_embedding = torch.tensor(feature_file.to_numpy(), dtype=torch.long)  # N * d
-        self.road_num = len(feature_file)
 
-    def _load_rel(self):
-        """ read the adjacent relation between roads """
-        self.rel_file = '../dataset/{}/roadmap_{}/roadmap_{}.rel'.format(self.city, self.city, self.city)
-        relfile = pd.read_csv(self.rel_file)
-        weight_col = None
-        for col in relfile.columns:
-            if 'weight' in col:
-                weight_col = col
-        assert weight_col is not None
+class MLP(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size, output_size)
 
-        relfile = relfile[['origin_id', 'destination_id', weight_col]]
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
+        return x
 
-        self.edge_index = []
-        self.edge_weight = []
-        for row in relfile.values:
-            self.edge_index.append([row[0], row[1]])
-            self.edge_weight.append(row[-1])
+
+class GAT(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, heads=1):
+        super(GAT, self).__init__()
+        self.conv1 = GATConv(in_channels, out_channels, heads=heads, concat=True)
+        self.conv2 = GATConv(out_channels * heads, out_channels, heads=heads, concat=False)
+
+    def forward(self, x, edge_index, edge_weights):
+        x = F.elu(self.conv1(x, edge_index, edge_attr=edge_weights))
+        x = self.conv2(x, edge_index, edge_attr=edge_weights)
+        return x
+
+
+
+class StTokenizer(nn.Module):
+    def __init__(self):
+        logging.info("Start initializing the ST tokenizer.")
+        super().__init__()
         
-        self.edge_index = np.array(self.edge_index, dtype='int64').T
-        self.edge_weight = np.array(self.edge_weight, dtype='float32')
-        return relfile
+        self.slide_window_size = 6
+        self.d_vec = 128
+        self.start_time = pd.to_datetime("2018-10-01T00:00:00Z")
+        self.end_time = pd.to_datetime("2018-11-30T23:30:00Z")
+        self.interval = 1800
+        
+        self.edges = None
+        self.edge_weight = None
+        self.load_relation()
+        
+        self.road_cnt = None
+        self.static_features = None
+        self.load_static_features()
+        
+        self.time_slots_cnt = None
+        self.dynamic_features = None
+        self.load_dynamic_features()
+        
+        self.static_origin_embedding = None
+        self.static_embedding_layers = None
+        self.static_embedding = None
+        self.dynamic_embedding_layers = None
+        self.dynamic_embedding = None
+        self.build_tokenizer()
+        
+        logging.info("Finish initializing the ST tokenizer.")
+
+    def forward(self, x_id, x_time):          
+        e = torch.cat([self.static_origin_embedding[i](self.static_features[:, i]) for i in range(self.static_features.size(1))], dim=1)
+        e = self.static_embedding_layers[0](e)
+        e = self.static_embedding_layers[1](e, self.edges, self.edge_weight)
+        static_embedding = self.static_embedding_layers[2](e)
+        
+        dynamic_embedding = self.dynamic_features[x_id, x_time]
+        print(self.dynamic_features[3767, 10])
+        print(dynamic_embedding.shape)
+        print(dynamic_embedding)
+        
+        
+        # road_embedding[x_id, x_time]
+        
+        
+        
+    
+    def load_relation(self):
+        logging.info("Start reading adjacency file.")
+        
+        rel_data = pd.read_csv(data_filename.road_relation_file)
+        
+        self.edges = torch.tensor(rel_data[['origin_id', 'destination_id']].to_numpy(dtype='int64'), dtype=torch.int64).T
+        self.edge_weight = torch.tensor(rel_data['geographical_weight'].to_numpy(dtype='float32'), dtype=torch.float32)
+        
+        logging.info("Finish reading adjacency file. \n"
+                    f"The number of edges in the graph: {len(rel_data)}. \n")
+    
+    def load_static_features(self):
+        logging.info("Start reading static features file.")
+        
+        static_data = pd.read_csv(data_filename.road_static_file)
+        
+        self.road_cnt = len(static_data)
+        
+        self.static_features = torch.tensor(static_data.to_numpy(), dtype=torch.long)
+        
+        logging.info("Finish reading static features file. \n"
+                    f"The number of vertices in the graph: {self.road_cnt}, \n"
+                    f"Shape of static features: {self.static_features.shape} \n")
+        
+    def load_dynamic_features(self):
+        logging.info("Start reading dynamic features file.")
+        
+        dynamic_data = pd.read_csv(data_filename.road_dynamic_file)
+        
+        self.time_slots_cnt = int((self.end_time - self.start_time).total_seconds() // self.interval) + 1
+        
+        self.dynamic_features = torch.zeros((self.road_cnt, self.time_slots_cnt), dtype=torch.float32)  
+        for row in tqdm(dynamic_data.values, desc='Processing rows', total=dynamic_data.shape[0]):
+            time_id = row[0] % self.time_slots_cnt
+            road_id = row[3]
+            self.dynamic_features[road_id, time_id] = row[4]
+            
+        N, T, S = self.road_cnt, self.time_slots_cnt, self.slide_window_size      
+
+        padded_dynamic_features = torch.cat((torch.zeros(N, T), self.dynamic_features), dim=1)
+        self.dynamic_features= torch.stack([padded_dynamic_features[:, j - S:j] for j in range(S, T + S)], dim=1)
+        
+        print(self.dynamic_features)
+        
+        logging.info("Finish reading dynamic features file. \n"
+                    f"Shape of dynamic features: {self.dynamic_features.shape} \n")
+        
+    def build_tokenizer(self):
+        logging.info("Start building static ST tokenizer.")
+        
+        D = self.d_vec
+        
+        max_size = torch.max(self.static_features, dim=0).values
+        self.static_origin_embedding = nn.ModuleList([nn.Embedding(num_embeddings=size+1, embedding_dim=D) for size in max_size])
+        self.static_embedding_layers = nn.Sequential(
+            MLP(input_size=self.static_features.shape[1]*D, hidden_size=D, output_size=D),
+            GAT(in_channels=D, out_channels=D, heads=2),
+            MLP(input_size=D, hidden_size=D, output_size=D)
+        )
+
+        logging.info("Finish building static ST tokenizer. \n"
+                    f"static_origin_embedding: \n{self.static_origin_embedding} \n"
+                    f"static_embedding_layers: \n{self.static_embedding_layers} \n")
+        
+        
+        logging.info("Start building dynamic ST tokenizer.")
+        
+        S = self.slide_window_size   
+        
+        self.dynamic_embedding_layers = nn.Sequential (
+            MLP(input_size=S, hidden_size=D, output_size=D),
+            GAT(in_channels=D, out_channels=D, heads=2),
+            # TODO CONV1D
+        )
+        
+        logging.info("Finish building dynamic ST tokenizer. \n"
+                      f"dynamic_embedding_layers: \n{self.dynamic_embedding_layers} \n")
+        

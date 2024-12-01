@@ -18,6 +18,8 @@ from utils.timefeatures import time_features
 from data_provider.data_loader_new import DatasetTraj
 from torch.utils.data import DataLoader
 
+from models.GPT4TS_new import StTokenizer
+
 from tqdm import tqdm
 
 def main():
@@ -29,13 +31,18 @@ def main():
     dataset = DatasetTraj()
     print(args.batch_size, args.num_workers)
     data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    print(data_loader)
     
-    print(data_filename.road_features_file)
+    print(data_filename.road_static_file)
+    print(data_filename.road_dynamic_file)
+    print(data_filename.road_relation_file)
+    print(data_filename.traj_file)
+    print(data_filename.traj_file_short)
     
-    with open(data_filename.road_features_file, "r") as f:
-        f.read()
-        
+    st = StTokenizer()
+    st(torch.tensor([3767, 5267]), torch.tensor([2000, 2000]))
+
+
+
     # args = args_config.parser.parse_args()
     # print(args)
     

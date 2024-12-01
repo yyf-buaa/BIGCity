@@ -11,12 +11,14 @@ from utils.timefeatures import time_features
 
 class DatasetTraj(Dataset):
     def __init__(self):
+        logging.info("Start loading trajectory dataset.")
+        
         super().__init__()
         self.seq_len = 64
         self.read_traj_data()
     
     def read_traj_data(self):
-        logging.info("start reading traj data file.")
+        logging.info("Start reading trajectory data file.")
         
         traj_data = pd.read_csv(data_filename.traj_file_short, delimiter=';').sample(frac = 0.8)
         traj_data.reset_index(drop=True, inplace=True)
@@ -32,7 +34,7 @@ class DatasetTraj(Dataset):
         self.traj_time_features_lists = np.reshape(data_stamp, (self.dataset_len, self.seq_len, data_stamp.shape[-1]))
         
         logging.info(
-                f"finish reading traj data file. \n"
+                f"Finish reading trajectory data file. \n"
                 f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
                 f"Shape of traj_time_lists: {self.traj_time_lists.shape}, \n"
                 f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape} \n")
