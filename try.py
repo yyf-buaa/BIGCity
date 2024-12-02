@@ -18,29 +18,43 @@ from utils.timefeatures import time_features
 from data_provider.data_loader_new import DatasetTraj
 from torch.utils.data import DataLoader
 
-from models.GPT4TS_new import StTokenizer
+from models.st_tokenizer import StTokenizer
+from models.backbone import BIGCity
 
 from tqdm import tqdm
 
 def main():
 
-    print(torch.cuda.is_available())
-    
-    print(args)
+    # print(data_filename.road_static_file)
+    # print(data_filename.road_dynamic_file)
+    # print(data_filename.road_relation_file)
+    # print(data_filename.traj_file)
+    # print(data_filename.traj_file_short)
     
     dataset = DatasetTraj()
-    print(args.batch_size, args.num_workers)
-    data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    
-    print(data_filename.road_static_file)
-    print(data_filename.road_dynamic_file)
-    print(data_filename.road_relation_file)
-    print(data_filename.traj_file)
-    print(data_filename.traj_file_short)
-    
     st = StTokenizer()
-    st(torch.tensor([3767, 5267]), torch.tensor([2000, 2000]))
+    big_city = BIGCity()
+    
+    data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    for i in data_loader:
+        x = st(i[0], i[1], i[2])
+        x = big_city(x)
+    
+    
+    
+    
+    
+    
+    
+    # N, T, S = 2, 13, 6
+    
+    # dynamic_features = torch.randn((N, T))
+    # print(dynamic_features)
+    
+    # padded_dynamic_features = torch.cat((torch.zeros(N, S), dynamic_features), dim=1)
+    # dynamic_features= torch.stack([padded_dynamic_features[:, j - S:j] for j in range(S, T + S)], dim=1)
 
+    # print(dynamic_features)
 
 
     # args = args_config.parser.parse_args()
