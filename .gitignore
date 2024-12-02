@@ -1,6 +1,6 @@
 log/
 runs/
-models/gpt2/
+models/gpt2/*.bin
 __pycache__/
 */.DS_Store
 *.sh
