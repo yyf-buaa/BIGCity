@@ -15,6 +15,7 @@ parser.add_argument('--data', type=str, required=True, default='Traj', help='dat
 parser.add_argument('--root_path', type=str, default='../dataset/', help='root path of the data file')
 parser.add_argument('--city', type=str, default='xa', help='city of the dataset')
 parser.add_argument('--embedding_model',type=str,default='HHGCLV3',help='road_embedding_model')
+parser.add_argument('--seq_len',type=int,default=64,help='trak sequence len')
 
 parser.add_argument('--freq', type=str, default='s',
                     help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
@@ -24,7 +25,7 @@ parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='l
 parser.add_argument('--mask_rate', type=float, default=0.25, help='mask ratio')
 
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception')
-parser.add_argument('--d_model', type=int, default=512, help='dimension of model')
+parser.add_argument('--d_model', type=int, default=768, help='dimension of model')
 parser.add_argument('--n_heads', type=int, default=8, help='num of heads')
 parser.add_argument('--e_layers', type=int, default=2, help='num of encoder layers')
 parser.add_argument('--d_layers', type=int, default=1, help='num of decoder layers')
