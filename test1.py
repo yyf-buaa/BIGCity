@@ -18,15 +18,15 @@ token_embeddings = torch.randn(B, L, dmodel)  # (B, L, dmodel)
 position_embeddings = gpt2.wpe.weight  # (max_position_embeddings, d_model)
 
 # 生成位置索引
-position_ids = torch.arange(L, dtype=torch.long).unsqueeze(0).repeat(B, 1).to(token_embeddings.device)  # (B, L)
+position_ids = torch.arange(L, dtype=torch.long).unsqueeze(0).repeat(B, 1)
 print(position_ids)
 
-# 获取对应位置的嵌入
-position_embeds = position_embeddings[position_ids]  # (B, L, d_model)
-print(position_embeds.shape)
+# # 获取对应位置的嵌入
+# position_embeds = position_embeddings[position_ids]  # (B, L, d_model)
+# print(position_embeds.shape)
 
-# 将位置嵌入与token嵌入相加
-input_embeddings = token_embeddings + position_embeds  # (B, L, d_model)
+# # 将位置嵌入与token嵌入相加
+# input_embeddings = token_embeddings + position_embeds  # (B, L, d_model)
 
-# 显示结果
-print(input_embeddings.shape)  # 应该是 (B, L, d_model)
+# # 显示结果
+# print(input_embeddings.shape)  # 应该是 (B, L, d_model)

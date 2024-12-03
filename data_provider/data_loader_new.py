@@ -6,6 +6,7 @@ import logging
 from ast import literal_eval
 
 from config import data_filename
+from config.args_config import args
 from utils.timefeatures import time_features
 
 class DatasetTraj(Dataset):
@@ -13,7 +14,7 @@ class DatasetTraj(Dataset):
         logging.info("Start loading trajectory dataset.")
         
         super().__init__()
-        self.seq_len = 64
+        self.seq_len = args.seq_len
         self.read_traj_data()
         
         logging.info("Finish loading trajectory dataset.")
