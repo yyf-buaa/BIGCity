@@ -45,8 +45,9 @@ class StTokenizer(nn.Module):
         
         logging.info("Finish initializing the ST tokenizer.")
 
-    def forward(self, road_id_batch, time_id_batch, time_feature_batch):          
-        B, N, M, L = args.batch_size, self.road_cnt, self.edge_cnt, args.seq_len
+    def forward(self, road_id_batch, time_id_batch, time_feature_batch):
+             
+        B, N, M, L = road_id_batch.shape[0], self.road_cnt, self.edge_cnt, args.seq_len
         
         # embedding of the static original discrete data
         se = torch.cat([self.static_origin_embedding[i](self.static_features[:, i]) for i in range(self.static_features.size(1))], dim=1)
