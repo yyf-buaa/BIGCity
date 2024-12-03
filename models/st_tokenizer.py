@@ -23,9 +23,9 @@ class StTokenizer(nn.Module):
         self.end_time = pd.to_datetime("2018-11-30T23:30:00Z")
         self.interval = 1800
         
+        self.edge_cnt = None
         self.edges = None
         self.edge_weight = None
-        self.edge_cnt = None
         self.load_relation()
         
         self.road_cnt = None
@@ -39,6 +39,7 @@ class StTokenizer(nn.Module):
         self.static_origin_embedding = None
         self.static_embedding_layers = None
         self.dynamic_embedding_layers = None
+        self.time_embedding_layers = None
         self.cross_attention = None
         self.final_mlp = None
         self.build_tokenizer()
@@ -83,14 +84,17 @@ class StTokenizer(nn.Module):
         
         # cross attention
         road_embedding_result = self.cross_attention(road_embedding_result)
+        
+        # time layer 1: Linear
+        time_embedding_result = self.time_embedding_layers[0](time_feature_batch)
 
         # concat time features
-        embedding_result = torch.cat((road_embedding_result, time_feature_batch), dim=-1)
+        embedding_result = torch.cat((road_embedding_result, time_embedding_result), dim=-1)
         
         # final MLP: token dimension is converted to d_model, ready for gpt2
         embedding_result = self.final_mlp(embedding_result)
         
-        return embedding_result
+        return embedding_result # (B, L, d_model)
     
     def load_relation(self):
         logging.info("Start reading adjacency file.")
@@ -161,7 +165,7 @@ class StTokenizer(nn.Module):
         
         S = self.slide_window_size   
         
-        self.dynamic_embedding_layers = nn.Sequential (
+        self.dynamic_embedding_layers = nn.Sequential(
             MLP(input_size=S, hidden_size=Demb, output_size=Demb),
             GAT(in_channels=Demb, out_channels=Demb, heads=2),
             MLP(input_size=Demb, hidden_size=Demb, output_size=Demb),
@@ -171,4 +175,9 @@ class StTokenizer(nn.Module):
                       f"dynamic_embedding_layers: \n{self.dynamic_embedding_layers} \n")
         
         self.cross_attention = CrossAttention(2 * Demb)
-        self.final_mlp = MLP(2 * Demb + Dtf, 2 * Demb, Dmodel)
+        
+        self.time_embedding_layers = nn.Sequential(
+            nn.Linear(Dtf, Demb)
+        )
+        
+        self.final_mlp = MLP(3 * Demb, 3 * Demb, Dmodel)

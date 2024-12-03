@@ -39,6 +39,8 @@ def main():
     for i in data_loader:
         x = st(i[0], i[1], i[2])
         x = big_city(x)
+        # break
+        # loss backward.....
     
     
     

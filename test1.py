@@ -6,54 +6,27 @@ import pandas as pd
 from transformers import GPT2Model, GPT2Config
 
 
-from peft import (
-    LoraConfig,
-    TaskType,
-    get_peft_model,
-    get_peft_model_state_dict,
-    set_peft_model_state_dict,
-    PeftModelForCausalLM
-)
+# 配置和模型初始化
+gpt2_config = GPT2Config.from_pretrained('./models/gpt2')
+gpt2 = GPT2Model.from_pretrained('./models/gpt2', config=gpt2_config)
 
-LORA_R = 8
-LORA_ALPHA = 32
-LORA_DROPOUT = 0.1
+# 假设我们有一个 batch 和 token_embeddings
+B, L, dmodel = 2, 10, 768  # 示例: batch size = 2, sequence length = 10, embedding size = 768
+token_embeddings = torch.randn(B, L, dmodel)  # (B, L, dmodel)
 
+# 获取位置嵌入
+position_embeddings = gpt2.wpe.weight  # (max_position_embeddings, d_model)
 
-# lora_config = LoraConfig(
-#             task_type=TaskType.CAUSAL_LM,
-#             inference_mode=False,
-#             r=LORA_R, 
-#             lora_alpha=LORA_ALPHA, 
-#             lora_dropout=LORA_DROPOUT, 
-#             target_modules=["c_attn", "c_proj", "c_fc"],
-#             fan_in_fan_out=True
-#         )
+# 生成位置索引
+position_ids = torch.arange(L, dtype=torch.long).unsqueeze(0).repeat(B, 1).to(token_embeddings.device)  # (B, L)
+print(position_ids)
 
+# 获取对应位置的嵌入
+position_embeds = position_embeddings[position_ids]  # (B, L, d_model)
+print(position_embeds.shape)
 
-# gpt2_config = GPT2Config.from_pretrained('./models/gpt2')
-# model = GPT2Model.from_pretrained('./models/gpt2', config=gpt2_config)
+# 将位置嵌入与token嵌入相加
+input_embeddings = token_embeddings + position_embeds  # (B, L, d_model)
 
-# # params = sum(p.numel() for p in model.parameters())
-# # params_r = sum(p.numel() for p in model.parameters() if p.requires_grad)
-# # print(params, params_r)
-
-# model = get_peft_model(model, lora_config)
-
-
-# B, L, dmodel = 2, 10, 768 
-# token_embeddings = torch.randn(B, L, dmodel)
-
-# print(model.h)
-
-# outputs = token_embeddings
-# for block in model.h:
-#     outputs = block(outputs)[0]
-
-# last_block_output = outputs
-
-# print(last_block_output.shape)
-
-edges = torch.randn((2, 10))
-edges.repeat(1, 3)
-print(edges.shape)
+# 显示结果
+print(input_embeddings.shape)  # 应该是 (B, L, d_model)
