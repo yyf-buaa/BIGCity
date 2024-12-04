@@ -64,7 +64,7 @@ class StTokenizer(nn.Module):
         # static layer 1: GAT
         se = self.static_embedding_layers[1](se, self.edges, self.edge_weight)
         
-        # static layer 2: MLP
+        # static layer 2: MLPS
         static_embedding = self.static_embedding_layers[2](se)
         
         self.dynamic_features = self.dynamic_features.to(self.device)
