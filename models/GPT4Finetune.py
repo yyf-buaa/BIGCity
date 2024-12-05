@@ -12,7 +12,7 @@ from transformers.models.gpt2.configuration_gpt2 import GPT2Config
 from transformers import BertTokenizer, BertModel
 from einops import rearrange
 from layers.Embed import DataEmbedding, DataEmbedding_wo_time,TrajDataEmbedding
-from models import GPT4TS
+from models import bigcity
 import logging
 import os
 import copy
@@ -42,7 +42,7 @@ class Model(nn.Module):
         self.city = configs.city
         pretrain_configs = copy.deepcopy(configs)
         pretrain_configs.task_name = 'Pretrain'
-        self.pretrain_model = GPT4TS.Model(pretrain_configs).float()
+        self.pretrain_model = bigcity.Model(pretrain_configs).float()
         self.checkpoint_pth = os.path.join('./checkpoints/' + configs.checkpoint_name, 'checkpoint.pth')
         self.inst_tokenizer = GPT2Tokenizer.from_pretrained('../gpt2')
         self.gpt2_checkpoint_pth =  os.path.join('./checkpoints/' + configs.gpt2_checkpoint_name, 'checkpoint.pth')

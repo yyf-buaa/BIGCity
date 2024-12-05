@@ -1,8 +1,7 @@
 import torch
 import logging
 import torch.nn as nn
-from transformers import GPT2Model, GPT2Config
-from transformers.models.gpt2.modeling_gpt2 import GPT2LMHeadModel
+from transformers import GPT2Model, GPT2LMHeadModel, GPT2Config
 from config.args_config import args
 from peft import (
     LoraConfig,
@@ -13,10 +12,11 @@ from peft import (
 from config.args_config import args
 from .layers import MLP
 
-class BIGCity(nn.Module):
+
+class Backbone(nn.Module):
     def __init__(self):
         logging.info("Start initializing the BIGCity backbone")
-        super(BIGCity, self).__init__()
+        super(Backbone, self).__init__()
         
         self.road_cnt = 5269
         self.d_time_feature = 6
@@ -34,17 +34,20 @@ class BIGCity(nn.Module):
         logging.info("Finish initializing the BIGCity backbone")
         
     def forward(self, x):   
-        B, L = x.shape[0], args.seq_len
-        self.device = x.device
+        B, Lpad = x.shape[0], x.shape[1]
+        
         # add position embedding
-        position_ids = torch.arange(L, dtype=torch.long).unsqueeze(0).repeat(B, 1).to(self.device)
-        position_embedding = self.gpt2.wpe.weight[position_ids].to(self.device)
+        position_ids = torch.arange(Lpad, dtype=torch.long).unsqueeze(0).repeat(B, 1)
+        position_embedding = self.gpt2.wpe.weight[position_ids]
         x = x + position_embedding
         
         # transformer block
         for block in self.gpt2.h:
             x = block(x)[0]
-        
+
+        # final layer norm
+        x = self.gpt2.ln_f(x)
+            
         # mlp for downstream tasks
         clas_out = self.mlp_c(x)
         time_out = self.mlp_t(x)
@@ -53,7 +56,7 @@ class BIGCity(nn.Module):
         return clas_out, time_out, reg_out
     
     def build_model(self):
-        self.gpt2_config = GPT2Config.from_pretrained('gpt2')
+        self.gpt2_config = GPT2Config.from_pretrained('./models/gpt2')
         self.lora_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             inference_mode=False,
@@ -66,7 +69,7 @@ class BIGCity(nn.Module):
         logging.info(f"GPT2 config: \n{self.gpt2_config}")
         logging.info(f"LoRA config: \n{self.lora_config}")
         
-        self.gpt2 = GPT2LMHeadModel(config=self.gpt2_config)
+        self.gpt2 = GPT2Model.from_pretrained("./models/gpt2", config=self.gpt2_config)
         self.gpt2 = get_peft_model(self.gpt2, self.lora_config)
         
         logging.info(f"GPT2+LoRA model structure: \n{self.gpt2}")
@@ -76,9 +79,9 @@ class BIGCity(nn.Module):
         logging.info(f"Total number of LoRA learnable parameters: {lora_params}")
         
         Dm, Dtf, N = args.d_model, self.d_time_feature, self.road_cnt
-        self.mlp_c = nn.Linear(Dm, N)
-        self.mlp_t = nn.Linear(Dm, Dtf)
-        self.mlp_r = nn.Linear(Dm, 1)
+        self.mlp_c = MLP(Dm, Dm, N)
+        self.mlp_t = MLP(Dm, Dm, Dtf)
+        self.mlp_r = MLP(Dm, Dm, 1)
         
         logging.info(f"Downstream tasks mlp: \n"
                      f"Classification: {self.mlp_c} \n"

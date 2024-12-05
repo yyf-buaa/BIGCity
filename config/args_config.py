@@ -22,7 +22,7 @@ parser.add_argument('--freq', type=str, default='s',
 parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
 
 # inputation task
-parser.add_argument('--mask_rate', type=float, default=0.25, help='mask ratio')
+parser.add_argument('--mask_rate', type=float, default=0.5, help='mask ratio')
 
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception')
 parser.add_argument('--d_model', type=int, default=768, help='dimension of model')

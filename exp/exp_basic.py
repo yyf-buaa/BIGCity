@@ -1,14 +1,14 @@
 import os
 import torch
 import logging
-from models import GPT4TS
+from models import bigcity
 from models import GPT4Finetune
 from models import LLAMA2_7B
 class Exp_Basic(object):
     def __init__(self, args):
         self.args = args
         self.model_dict = {
-            'GPT4TS': GPT4TS,
+            'GPT4TS': bigcity,
             'GPT4Finetune': GPT4Finetune,
             'LLAMA':LLAMA2_7B
         }

@@ -9,19 +9,17 @@ from torch.nn import functional as F
 import logging
 import os
 import time
-import warnings
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from sklearn.metrics import accuracy_score, f1_score
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
+
 from datetime import datetime
 from utils.scheduler import CosineLRScheduler
 from torch.utils.tensorboard import SummaryWriter
 from layers.Embed import DataEmbedding, DataEmbedding_wo_time, TrajDataEmbedding
 from models.st_tokenizer import StTokenizer
-from models.backbone import BIGCity
-from models.GPT4TS import Model
+from models.backbone import Backbone
+from models.bigcity import Model
 
 class Exp_Pretrain(Exp_Basic):
     def __init__(self, args):
@@ -38,7 +36,7 @@ class Exp_Pretrain(Exp_Basic):
             self.seq_len = 128
         else:
             self.seq_len = 64
-        self.alpha = args.loss_alpha
+        self.alpha = args.loss_alph
         self.beta = args.loss_beta
         self.gamma = args.loss_gamma
         self.early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
