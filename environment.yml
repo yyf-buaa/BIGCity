@@ -1,4 +1,4 @@
-name: bigst2
+name: bigst
 channels:
   - huggingface
   - defaults
