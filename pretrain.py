@@ -85,12 +85,14 @@ def main():
             optimizer.zero_grad()
             
         train_loss_ave = np.average(train_loss)
-        early_stopping(train_loss_ave, bigcity, os.path.join("./", "checkpoints")) # TODO
+        early_stopping(train_loss_ave, bigcity, args.checkpoints) # TODO
         lr_scheduler.step(epoch)
     
     
 if __name__ == "__main__":
+    print(global_vars.device)
     try:
-        main()
+        # main()
+        pass
     except Exception as e:
         logging.error("\n" + traceback.format_exc())
