@@ -1,4 +1,4 @@
-name: bigst
+name: bigst2
 channels:
   - huggingface
   - defaults
@@ -126,4 +126,3 @@ dependencies:
       - werkzeug==3.0.5
       - yarl==1.16.0
       - zipp==3.20.2
-prefix: /home/wangwenrui/opt/miniconda3/envs/bigst
