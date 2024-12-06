@@ -1,13 +1,16 @@
 import logging
 import os
+from .args_config import args
 from datetime import datetime
 
-
 log_dir = "./log"
-
+checkpoints_dir = args.checkpoints
 
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
+    
+if not os.path.exists(checkpoints_dir):
+    os.makedirs(checkpoints_dir)
 
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 log_filename = os.path.join(log_dir, f"{timestamp}.log")
@@ -22,7 +25,7 @@ file_formatter = logging.Formatter(
 )
 file_handler.setFormatter(file_formatter)
 
-console_handler = logging.StreamHandler()
+console_handler = loggingStreamHandler()
 console_handler.setLevel(logging.INFO)
 console_formatter = logging.Formatter(
     "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

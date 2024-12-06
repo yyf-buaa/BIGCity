@@ -34,7 +34,7 @@ def padding_mask(B, L):
     for i in range(B):
         indices_to_mask = torch.randperm(L, dtype=torch.long)[:num_mask]
         mask[i][indices_to_mask] = 0
-    return mask, num_mask
+    return mask.to(device), num_mask
 
 def main():
     dataset = DatasetTraj()
@@ -56,6 +56,12 @@ def main():
             
             batch_road_id, batch_time_id, batch_time_features, batch_road_flow = batch
             
+            # to gpu
+            batch_road_id = batch_road_id.to(device)
+            batch_time_id = batch_time_id.to(device)
+            batch_time_features = batch_time_features.to(device)
+            batch_road_flow = batch_road_flow.to(device)
+
             B, L, N, Dtf = batch_road_id.shape[0], batch_road_id.shape[1], file_loader.road_cnt, 6
             
             # get mask
@@ -92,7 +98,7 @@ def main():
 if __name__ == "__main__":
     print(global_vars.device)
     try:
-        # main()
+        main()
         pass
     except Exception as e:
         logging.error("\n" + traceback.format_exc())
