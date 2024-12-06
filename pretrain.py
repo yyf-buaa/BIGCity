@@ -27,6 +27,20 @@ from models.bigcity import BigCity
 from utils.tools import EarlyStopping
 from utils.scheduler import CosineLRScheduler
 
+
+dataset = DatasetTraj()
+data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+bigcity = BigCity()
+
+early_stopping = EarlyStopping(patience=args.patience, verbose=True)
+optimizer = torch.optim.Adam(bigcity.parameters(), lr=args.learning_rate, weight_decay=args.weight)
+lr_scheduler = CosineLRScheduler(
+    optimizer, args.train_epochs, lr_min=0, decay_rate=0.1,
+    warmup_t=40, warmup_lr_init=args.learning_rate / 20, t_in_epochs=True)
+
+# Initialize loss records at the beginning of the training loop
+road_id_losses, time_features_losses, road_flow_losses, total_losses = [], [], [], []
+
 def padding_mask(B, L):
     mask = torch.ones(B, L)
     num_mask = int(args.mask_rate * L)
@@ -35,20 +49,7 @@ def padding_mask(B, L):
         mask[i][indices_to_mask] = 0
     return mask.to(device), num_mask
 
-def main():
-    dataset = DatasetTraj()
-    data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    bigcity = BigCity()
-    
-    early_stopping = EarlyStopping(patience=args.patience, verbose=True)
-    optimizer = torch.optim.Adam(bigcity.parameters(), lr=args.learning_rate, weight_decay=args.weight)
-    lr_scheduler = CosineLRScheduler(
-        optimizer, args.train_epochs, lr_min=0, decay_rate=0.1,
-        warmup_t=40, warmup_lr_init=args.learning_rate / 20, t_in_epochs=True)
-    
-    # Initialize loss records at the beginning of the training loop
-    road_id_losses, time_features_losses, road_flow_losses, total_losses = [], [], [], []
-    
+def train():
     for epoch in range(1, args.train_epochs + 1):
         print(f"Epoch: {epoch}")
         train_loss = []
@@ -111,27 +112,33 @@ def main():
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss }, os.path.join(args.checkpoints, f'checkpoint{epoch}.pth'))
 
-    # After training, plot the losses
-    plt.figure(figsize=(10, 6))
+def main():
+    try:
+        train()
+    except KeyboardInterrupt:
+        print("\nTraining interrupted by user. Generating loss plots...")
 
-    plt.plot(total_losses, label='Total Loss', color='blue', linestyle='-', linewidth=2)
-    plt.plot(road_id_losses, label='Road ID Loss', color='red', linestyle='--', linewidth=1.5)
-    plt.plot(time_features_losses, label='Time Features Loss', color='green', linestyle=':', linewidth=1.5)
-    plt.plot(road_flow_losses, label='Road Flow Loss', color='purple', linestyle='-.', linewidth=1.5)
+    finally:
+        # After training or interruption, plot the losses
+        plt.figure(figsize=(10, 6))
 
-    plt.xlabel('Iterations (batches)', fontsize=12)
-    plt.ylabel('Loss Value', fontsize=12)
-    plt.title('Losses during Training', fontsize=14)
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-    plot_filename = "training_losses.png"
-    plt.savefig(plot_filename)
+        plt.plot(total_losses, label='Total Loss', color='blue', linestyle='-', linewidth=2)
+        plt.plot(road_id_losses, label='Road ID Loss', color='red', linestyle='--', linewidth=1.5)
+        plt.plot(time_features_losses, label='Time Features Loss', color='green', linestyle=':', linewidth=1.5)
+        plt.plot(road_flow_losses, label='Road Flow Loss', color='purple', linestyle='-.', linewidth=1.5)
 
-    
+        plt.xlabel('Iterations (batches)', fontsize=12)
+        plt.ylabel('Loss Value', fontsize=12)
+        plt.title('Losses during Training', fontsize=14)
+        plt.legend()
+        plt.grid(True)
+
+        plot_filename = "./image/training_losses.png"
+        plt.savefig(plot_filename)
+        print(f"Loss plot saved to {plot_filename}")
+
 if __name__ == "__main__":
     try:
         main()
-        pass
     except Exception as e:
         logging.error("\n" + traceback.format_exc())

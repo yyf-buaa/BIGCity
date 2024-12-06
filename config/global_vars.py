@@ -15,6 +15,7 @@ road_dynamic_tensor_file = os.path.join(args.root_path, args.city, f'{args.city}
 traj_file = os.path.join(args.root_path, args.city, f'traj_{args.city}_11.csv')
 traj_file_short = os.path.join(args.root_path, args.city, f'traj_{args.city}_11_short.csv')
 
+road_dynamic_embedding_file = os.path.join(args.root_path, args.city, "road_dyna_embedding.npy")
 
 start_time = pd.to_datetime("2018-10-01T00:00:00Z")
 end_time = pd.to_datetime("2018-11-30T23:30:00Z")
