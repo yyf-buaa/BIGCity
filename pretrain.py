@@ -135,7 +135,11 @@ def main():
 
         plot_filename = "./image/training_losses.png"
         plt.savefig(plot_filename)
-        print(f"Loss plot saved to {plot_filename}")
+        logging.info(f"Loss plot saved to {plot_filename}")
+        logging.info(f"total_losses: {total_losses}")
+        logging.info(f"road_id_losses: {road_id_losses}")
+        logging.info(f"time_features_losses: {time_features_losses}")
+        logging.info(f"road_flow_losses: {road_flow_losses}")
 
 if __name__ == "__main__":
     try:
