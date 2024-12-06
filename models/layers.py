@@ -9,13 +9,13 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(hidden_size, output_size)
-        self.layer_norm = nn.LayerNorm(output_size)
+        # self.layer_norm = nn.LayerNorm(output_size)
 
     def forward(self, x):
         x = self.fc1(x)
         x = self.relu(x)
         x = self.fc2(x)
-        x = self.layer_norm(x)
+        # x = self.layer_norm(x)
         return x
 
 
@@ -26,7 +26,8 @@ class GAT(torch.nn.Module):
         self.conv2 = GATConv(out_channels * heads, out_channels, heads=heads, concat=False)
 
     def forward(self, x, edge_index, edge_weights):
-        x = F.elu(self.conv1(x, edge_index, edge_attr=edge_weights))
+        x = self.conv1(x, edge_index, edge_attr=edge_weights)
+        x = F.elu(x)
         x = self.conv2(x, edge_index, edge_attr=edge_weights)
         return x
     

@@ -24,7 +24,7 @@ class DatasetTraj(Dataset):
     def read_traj_data(self):
         logging.info("Start reading trajectory data file.")
         
-        traj_data = pd.read_csv(global_vars.traj_file, delimiter=';')
+        traj_data = pd.read_csv(global_vars.traj_file_short, delimiter=';')
         traj_data = traj_data.sample(frac = args.sample_rate)
         traj_data.reset_index(drop=True, inplace=True)
         
@@ -47,6 +47,7 @@ class DatasetTraj(Dataset):
         logging.info("Finish reading time features.")
         
         self.traj_road_flow = file_loader.dynamic_features[self.traj_road_id_lists, self.traj_time_id_lists]
+        self.traj_road_flow = self.traj_road_flow - self.traj_road_flow[:, 0:1]
         logging.info("Finish reading road flow.")
         
         logging.info(
