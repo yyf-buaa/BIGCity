@@ -2,7 +2,6 @@ import torch
 import logging
 import torch.nn as nn
 from transformers import GPT2Model, GPT2LMHeadModel, GPT2Config
-from config.args_config import args
 from peft import (
     LoraConfig,
     TaskType,
@@ -10,6 +9,8 @@ from peft import (
 )
 
 from config.args_config import args
+from config.global_vars import device
+from data_provider import file_loader
 from .layers import MLP
 
 
@@ -18,7 +19,7 @@ class Backbone(nn.Module):
         logging.info("Start initializing the BIGCity backbone")
         super(Backbone, self).__init__()
         
-        self.road_cnt = 5269
+        self.road_cnt = file_loader.road_cnt
         self.d_time_feature = 6
         
         self.LORA_R = 8

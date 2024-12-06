@@ -3,8 +3,7 @@ import torch
 import pandas as pd
 from config.args_config import args
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+device = torch.device("cuda:0" if args.use_gpu and torch.cuda.is_available() else "cpu")
 road_relation_file = os.path.join(args.root_path, args.city, f"roadmap_{args.city}", f"roadmap_{args.city}.rel")
 
 road_static_file = os.path.join(args.root_path, args.city, f"roadmap_{args.city}", f"road_features_{args.city}.csv")

@@ -5,6 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from config import global_vars
+from config.global_vars import device
 from config.args_config import args
 from .layers import MLP, GAT, CrossAttention
 from data_provider import file_loader
@@ -63,7 +64,7 @@ class StTokenizer(nn.Module):
         de = self.dynamic_embedding_layers[0](de)
 
         # dynamic layer 1: GAT(batch)
-        edges = self.edges.repeat(1, B) + (torch.arange(B) * N).repeat_interleave(M)
+        edges = self.edges.repeat(1, B) + (torch.arange(B) * N).repeat_interleave(M).to(device)
         edge_weight = self.edge_weight.repeat(B)
         de = de.permute(1, 0, 2).reshape(-1, de.shape[-1])
         de = self.dynamic_embedding_layers[1](de, edges, edge_weight)
@@ -95,20 +96,20 @@ class StTokenizer(nn.Module):
     
     def load_relation(self):
         self.edge_cnt = file_loader.edge_cnt
-        self.edges = file_loader.edges
-        self.edge_weight = file_loader.edge_weight
+        self.edges = file_loader.edges.to(device)
+        self.edge_weight = file_loader.edge_weight.to(device)
         
     def load_static_features(self):
         self.road_cnt = file_loader.road_cnt
-        self.static_features = file_loader.static_features
+        self.static_features = file_loader.static_features.to(device)
         
     def load_dynamic_features(self):
         self.time_slots_cnt = file_loader.time_slots_cnt
-        dynamic_features = file_loader.dynamic_features
+        dynamic_features = file_loader.dynamic_features.to(device)
             
         N, T, S = self.road_cnt, self.time_slots_cnt, self.slide_window_size
 
-        padded_dynamic_features = torch.cat((torch.zeros(N, S), dynamic_features), dim=1)
+        padded_dynamic_features = torch.cat((torch.zeros(N, S).to(device), dynamic_features), dim=1)
         self.dynamic_features= torch.stack([padded_dynamic_features[:, j - S:j] for j in range(S, T + S)], dim=1)
         
     def build_tokenizer(self):
@@ -117,7 +118,9 @@ class StTokenizer(nn.Module):
         Demb, Dtf, Dmodel = self.d_vec, self.d_time_features, args.d_model
         
         max_size = torch.max(self.static_features, dim=0).values
-        self.static_origin_embedding = nn.ModuleList([nn.Embedding(num_embeddings=size+1, embedding_dim=Demb) for size in max_size])
+        self.static_origin_embedding = nn.ModuleList([
+            nn.Embedding(num_embeddings=size+1, embedding_dim=Demb) for size in max_size
+        ])
         self.static_embedding_layers = nn.Sequential(
             MLP(input_size=self.static_features.shape[1]*Demb, hidden_size=Demb, output_size=Demb),
             GAT(in_channels=Demb, out_channels=Demb, heads=2),

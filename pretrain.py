@@ -13,7 +13,7 @@ from datetime import datetime
 import config.logging_config
 import config.random_seed
 from config.args_config import args
-from config import global_vars
+from config.global_vars import device
 
 from data_provider.data_loader import DatasetTraj
 from data_provider import file_loader
@@ -91,12 +91,13 @@ def main():
             optimizer.zero_grad()
             
         train_loss_ave = np.average(train_loss)
+        print(train_loss_ave)
         early_stopping(train_loss_ave, bigcity, args.checkpoints) # TODO
         lr_scheduler.step(epoch)
     
     
 if __name__ == "__main__":
-    print(global_vars.device)
+    print(device)
     try:
         main()
         pass

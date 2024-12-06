@@ -4,17 +4,18 @@ import torch.nn as nn
 from config.args_config import args
 from models.st_tokenizer import StTokenizer
 from models.backbone import Backbone
+from config.global_vars import device
 
 
 class BigCity(nn.Module):
     def __init__(self):
         super(BigCity, self).__init__()
         
-        self.tokenizer = StTokenizer()
-        self.clas_token = nn.Parameter(torch.full((args.d_model,), 1, dtype=torch.float32))
-        self.reg_token = nn.Parameter(torch.full((args.d_model,), 2, dtype=torch.float32))
+        self.tokenizer = StTokenizer().to(device)
+        self.clas_token = nn.Parameter(torch.full((args.d_model,), 1, dtype=torch.float32)).to(device)
+        self.reg_token = nn.Parameter(torch.full((args.d_model,), 2, dtype=torch.float32)).to(device)
         
-        self.backbone = Backbone()
+        self.backbone = Backbone().to(device)
         
  
     def forward(self, batch_road_id, batch_time_id, batch_time_features, mask, num_mask):
@@ -37,8 +38,8 @@ class BigCity(nn.Module):
         clas_output, time_output, reg_output = self.backbone(batch_psm_tokens)
         
         # get output special tokens
-        clas_indices = torch.arange(-2 * num_mask, 0, 2)
-        reg_indices = torch.arange(-2 * num_mask + 1, 1, 2) 
+        clas_indices = torch.arange(-2 * num_mask, 0, 2).to(device)
+        reg_indices = torch.arange(-2 * num_mask + 1, 1, 2).to(device)
         
         return clas_output[:, clas_indices, :], time_output[:, reg_indices, :], reg_output[:, reg_indices, :]
         
