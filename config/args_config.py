@@ -78,4 +78,6 @@ parser.add_argument('--checkpoint_name', type=str, default=None)
 parser.add_argument('--gpt2_checkpoint_name', type=str, default=None)
 parser.add_argument('--sample_rate', type=float, default=1)
 
+parser.add_argument('--pre_dyna', default=False, action='store_true', help='Pre-trained dyna embeddings are used if set')
+
 args = parser.parse_args()

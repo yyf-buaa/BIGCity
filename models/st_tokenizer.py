@@ -2,6 +2,7 @@ import torch
 import logging
 import torch.nn as nn
 import pandas as pd
+import numpy as np
 from tqdm import tqdm
 
 from config import global_vars
@@ -38,6 +39,7 @@ class StTokenizer(nn.Module):
         self.static_origin_embedding = None
         self.static_embedding_layers = None
         self.dynamic_embedding_layers = None
+        self.dynamic_embedding = None
         self.time_embedding_layers = None
         self.cross_attention = None
         self.final_mlp = None
@@ -59,24 +61,30 @@ class StTokenizer(nn.Module):
         # static layer 2: MLP
         static_embedding = self.static_embedding_layers[2](se)
         
-        # dynamic layer 0: MLP
-        de = self.dynamic_features[:, batch_time_id[:, 0]]
-        de = self.dynamic_embedding_layers[0](de)
-
-        # dynamic layer 1: GAT(batch)
-        edges = self.edges.repeat(1, B) + (torch.arange(B) * N).repeat_interleave(M).to(device)
-        edge_weight = self.edge_weight.repeat(B)
-        de = de.permute(1, 0, 2).reshape(-1, de.shape[-1])
-        de = self.dynamic_embedding_layers[1](de, edges, edge_weight)
-        de = de.view(B, N, -1).permute(1, 0, 2)
-        
-        # dynamic layer 2: MLP
-        dynamic_embedding = self.dynamic_embedding_layers[2](de)
-        
-        # get tokens from embedding matrix
+        # get static tokens
         static_embedding_result = static_embedding[batch_road_id]
-        dynamic_embedding_result = dynamic_embedding[batch_road_id, torch.arange(B).unsqueeze(1).expand(B, L)]
         
+        if not args.pre_dyna:
+            # dynamic layer 0: MLP
+            de = self.dynamic_features[:, batch_time_id[:, 0]]
+            de = self.dynamic_embedding_layers[0](de)
+
+            # dynamic layer 1: GAT(batch)
+            edges = self.edges.repeat(1, B) + (torch.arange(B) * N).repeat_interleave(M).to(device)
+            edge_weight = self.edge_weight.repeat(B)
+            de = de.permute(1, 0, 2).reshape(-1, de.shape[-1])
+            de = self.dynamic_embedding_layers[1](de, edges, edge_weight)
+            de = de.view(B, N, -1).permute(1, 0, 2)
+            
+            # dynamic layer 2: MLP
+            dynamic_embedding = self.dynamic_embedding_layers[2](de)
+            
+            # get dynamic tokens
+            dynamic_embedding_result = dynamic_embedding[batch_road_id, torch.arange(B).unsqueeze(1).expand(B, L)]
+        else:
+            # get dynamic tokens from pre-trained embedding
+            dynamic_embedding_result = self.dynamic_embedding[batch_road_id, torch.arange(B).unsqueeze(1).expand(B, L)]
+            
         # concat stactic/dynamic tokens
         road_embedding_result = torch.cat((static_embedding_result, dynamic_embedding_result), dim=-1)
         
@@ -141,6 +149,10 @@ class StTokenizer(nn.Module):
             GAT(in_channels=Demb, out_channels=Demb, heads=2),
             MLP(input_size=Demb, hidden_size=Demb, output_size=Demb),
         )
+        if args.pre_dyna:
+            self.dynamic_embedding = torch.from_numpy(np.load(global_vars.road_dynamic_embedding_file)).to(device)
+            self.dynamic_embedding.requires_grad = False
+            logging.info(f"Pre-trained dyna embeddings are used. Shape: {self.dynamic_embedding.shape}")
         
         logging.info("Finish building dynamic ST tokenizer. \n"
                       f"dynamic_embedding_layers: \n{self.dynamic_embedding_layers} \n")
