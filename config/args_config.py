@@ -45,7 +45,7 @@ parser.add_argument('--output_attention', action='store_true', help='whether to 
 parser.add_argument('--num_workers', type=int, default=10, help='data loader num workers') # use
 parser.add_argument('--itr', type=int, default=1, help='experiments times')
 parser.add_argument('--train_epochs', type=int, default=10, help='train epochs') # use
-parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data') # use
+parser.add_argument('--batch_size', type=int, default=64, help='batch size of train input data') # use
 parser.add_argument('--patience', type=int, default=3, help='early stopping patience') # use
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate') # use
 parser.add_argument('--des', type=str, default='test', help='exp description')
