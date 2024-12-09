@@ -62,6 +62,13 @@ def load_road_features_file():
             prev_line, next_line = id - 1, max(road_cnt - 1, id + 1)
             dynamic_features[id] = (dynamic_features[prev_line] + dynamic_features[next_line]) / 2
         
+        row_sum = torch.sum(dynamic_features, dim=1)
+        non_zero_count = torch.sum(dynamic_features != 0, dim=1)
+        row_mean = row_sum / non_zero_count
+        row_mean[non_zero_count == 0] = 0
+        mask = (dynamic_features == 0)
+        dynamic_features[mask] = row_mean.unsqueeze(1).expand_as(dynamic_features)[mask]
+ 
         torch.save(dynamic_features, global_vars.road_dynamic_tensor_file)
         logging.info(f"Save the file to {global_vars.road_dynamic_tensor_file}")
             

@@ -120,21 +120,26 @@ def main():
 
     finally:
         # After training or interruption, plot the losses
-        plt.figure(figsize=(10, 6))
+        # Plot individual loss graphs
+        loss_names = ["Total Loss", "Road ID Loss", "Time Features Loss", "Road Flow Loss"]
+        loss_data = [total_losses, road_id_losses, time_features_losses, road_flow_losses]
+        loss_colors = ["blue", "red", "green", "purple"]
+        loss_styles = ["-", "--", ":", "-."]
 
-        plt.plot(total_losses, label='Total Loss', color='blue', linestyle='-', linewidth=2)
-        plt.plot(road_id_losses, label='Road ID Loss', color='red', linestyle='--', linewidth=1.5)
-        plt.plot(time_features_losses, label='Time Features Loss', color='green', linestyle=':', linewidth=1.5)
-        plt.plot(road_flow_losses, label='Road Flow Loss', color='purple', linestyle='-.', linewidth=1.5)
-
-        plt.xlabel('Iterations (batches)', fontsize=12)
-        plt.ylabel('Loss Value', fontsize=12)
-        plt.title('Losses during Training', fontsize=14)
-        plt.legend()
-        plt.grid(True)
-
-        plot_filename = "./image/training_losses.png"
-        plt.savefig(plot_filename)
+        for i, (name, data, color, style) in enumerate(zip(loss_names, loss_data, loss_colors, loss_styles)):
+            plt.figure(figsize=(12, 8))
+            plt.plot(data, label=name, color=color, linestyle=style, linewidth=1.5)
+            plt.xlabel("Iterations (batches)", fontsize=12)
+            plt.ylabel("Loss Value", fontsize=12)
+            plt.title(f"{name} during Training", fontsize=14)
+            plt.legend()
+            plt.grid(True)
+            
+            # Save each plot
+            plot_filename = f"./image/{name.replace(' ', '_').lower()}.png"
+            plt.savefig(plot_filename)
+            plt.close()  # Close the figure to avoid overlap or memory issues
+        
         logging.info(f"Loss plot saved to {plot_filename}")
         logging.info(f"total_losses: {total_losses}")
         logging.info(f"road_id_losses: {road_id_losses}")
