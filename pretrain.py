@@ -41,6 +41,29 @@ lr_scheduler = CosineLRScheduler(
 # Initialize loss records at the beginning of the training loop
 road_id_losses, time_features_losses, road_flow_losses, total_losses = [], [], [], []
 
+
+def save_loss_image():
+    # After training or interruption, plot the losses
+    # Plot individual loss graphs
+    loss_names = ["Total Loss", "Road ID Loss", "Time Features Loss", "Road Flow Loss"]
+    loss_data = [total_losses, road_id_losses, time_features_losses, road_flow_losses]
+    loss_colors = ["blue", "red", "green", "purple"]
+    loss_styles = ["-", "--", ":", "-."]
+
+    for i, (name, data, color, style) in enumerate(zip(loss_names, loss_data, loss_colors, loss_styles)):
+        plt.figure(figsize=(12, 8))
+        plt.plot(data, label=name, color=color, linestyle=style, linewidth=1.5)
+        plt.xlabel("Iterations (batches)", fontsize=12)
+        plt.ylabel("Loss Value", fontsize=12)
+        plt.title(f"{name} during Training", fontsize=14)
+        plt.legend()
+        plt.grid(True)
+        
+        # Save each plot
+        plot_filename = f"./image/{name.replace(' ', '_').lower()}.png"
+        plt.savefig(plot_filename)
+        plt.close()  # Close the figure to avoid overlap or memory issues
+
 def padding_mask(B, L):
     mask = torch.ones(B, L)
     num_mask = int(args.mask_rate * L)
@@ -51,9 +74,9 @@ def padding_mask(B, L):
 
 def train():
     for epoch in range(1, args.train_epochs + 1):
-        print(f"Epoch: {epoch}")
+        logging.info(f"Epoch: {epoch}")
         train_loss = []
-        for batch in tqdm(data_loader, desc="batch", total=len(data_loader)):
+        for batchidx, batch in enumerate(tqdm(data_loader, desc="batch", total=len(data_loader))):
             batch_road_id, batch_time_id, batch_time_features, batch_road_flow = batch
             
             # Move data to GPU
@@ -99,7 +122,7 @@ def train():
             
         # Calculate average training loss for this epoch
         train_loss_ave = np.average(train_loss)
-        print(f"Epoch {epoch}, Average Loss: {train_loss_ave}")
+        logging.info(f"Epoch {epoch}, Average Loss: {train_loss_ave}")
 
         # Early stopping and scheduler step
         early_stopping(train_loss_ave, bigcity, args.checkpoints)
@@ -116,29 +139,10 @@ def main():
     try:
         train()
     except KeyboardInterrupt:
-        print("\nTraining interrupted by user. Generating loss plots...")
+        logging.info("\nTraining interrupted by user. Generating loss plots...")
 
     finally:
-        # After training or interruption, plot the losses
-        # Plot individual loss graphs
-        loss_names = ["Total Loss", "Road ID Loss", "Time Features Loss", "Road Flow Loss"]
-        loss_data = [total_losses, road_id_losses, time_features_losses, road_flow_losses]
-        loss_colors = ["blue", "red", "green", "purple"]
-        loss_styles = ["-", "--", ":", "-."]
-
-        for i, (name, data, color, style) in enumerate(zip(loss_names, loss_data, loss_colors, loss_styles)):
-            plt.figure(figsize=(12, 8))
-            plt.plot(data, label=name, color=color, linestyle=style, linewidth=1.5)
-            plt.xlabel("Iterations (batches)", fontsize=12)
-            plt.ylabel("Loss Value", fontsize=12)
-            plt.title(f"{name} during Training", fontsize=14)
-            plt.legend()
-            plt.grid(True)
-            
-            # Save each plot
-            plot_filename = f"./image/{name.replace(' ', '_').lower()}.png"
-            plt.savefig(plot_filename)
-            plt.close()  # Close the figure to avoid overlap or memory issues
+        save_loss_image()
         
         logging.info(f"Loss plot saved to {plot_filename}")
         logging.info(f"total_losses: {total_losses}")
