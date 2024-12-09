@@ -29,7 +29,6 @@ dependencies:
   - sqlite=3.45.3=h5eee18b_0
   - tk=8.6.14=h39e8969_0
   - tqdm=4.66.5=py39h2f386ee_0
-  - typing_extensions=4.11.0=py39h06a4308_0
   - urllib3=2.2.3=py39h06a4308_0
   - wheel=0.44.0=py39h06a4308_0
   - xz=5.4.6=h5eee18b_1
@@ -41,14 +40,18 @@ dependencies:
       - aiohappyeyeballs==2.4.3
       - aiohttp==3.10.10
       - aiosignal==1.3.1
+      - annotated-types==0.7.0
       - asttokens==2.4.1
       - async-timeout==4.0.3
       - attrs==24.2.0
       - charset-normalizer==3.4.0
+      - click==8.1.7
       - contourpy==1.3.0
       - cycler==0.12.1
       - decorator==5.1.1
+      - docker-pycreds==0.4.0
       - einops==0.8.0
+      - eval-type-backport==0.2.0
       - exceptiongroup==1.2.2
       - executing==2.1.0
       - filelock==3.16.1
@@ -57,8 +60,9 @@ dependencies:
       - fsspec==2024.10.0
       - geographiclib==2.0
       - geopy==2.4.1
+      - gitdb==4.0.11
+      - gitpython==3.1.43
       - grpcio==1.67.0
-      - huggingface-hub==0.26.1
       - idna==3.10
       - importlib-metadata==8.5.0
       - importlib-resources==6.4.5
@@ -93,12 +97,15 @@ dependencies:
       - peft==0.13.2
       - pexpect==4.9.0
       - pillow==11.0.0
+      - platformdirs==4.3.6
       - prompt-toolkit==3.0.48
       - propcache==0.2.0
       - protobuf==5.28.3
       - psutil==6.1.0
       - ptyprocess==0.7.0
       - pure-eval==0.2.3
+      - pydantic==2.10.3
+      - pydantic-core==2.27.1
       - pygments==2.18.0
       - pyparsing==3.2.0
       - python-dateutil==2.9.0.post0
@@ -107,7 +114,10 @@ dependencies:
       - safetensors==0.4.5
       - scikit-learn==1.5.2
       - scipy==1.13.1
+      - sentry-sdk==2.19.2
+      - setproctitle==1.3.4
       - six==1.16.0
+      - smmap==5.0.1
       - stack-data==0.6.3
       - sympy==1.13.1
       - tensorboard==2.18.0
@@ -122,6 +132,7 @@ dependencies:
       - triton==3.1.0
       - typing-extensions==4.12.2
       - tzdata==2024.2
+      - wandb==0.19.0
       - wcwidth==0.2.13
       - werkzeug==3.0.5
       - yarl==1.16.0

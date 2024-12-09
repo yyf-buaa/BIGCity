@@ -11,6 +11,7 @@ from ast import literal_eval
 import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm
+import wandb
 
 import config.logging_config
 import config.random_seed
@@ -115,6 +116,16 @@ def train():
             road_flow_losses.append(road_flow_loss.item())
             total_losses.append(loss.item())
             
+            # Log losses to wandb
+            wandb.log({
+                "Epoch": epoch,
+                "Batch": batchidx,
+                "Road ID Loss": road_id_loss.item(),
+                "Time Features Loss": time_features_loss.item(),
+                "Road Flow Loss": road_flow_loss.item(),
+                "Total Loss": loss.item(),
+            })
+            
             # Backpropagation
             loss.backward()
             optimizer.step()
@@ -122,33 +133,44 @@ def train():
             
         # Calculate average training loss for this epoch
         train_loss_ave = np.average(train_loss)
+        current_lr = optimizer.param_groups[0]['lr']
         logging.info(f"Epoch {epoch}, Average Loss: {train_loss_ave}")
-
-        # Early stopping and scheduler step
-        early_stopping(train_loss_ave, bigcity, args.checkpoints)
-        lr_scheduler.step(epoch)
+        logging.info(f"Learning Rate: {current_lr}")
+        wandb.log({
+            "Epoch Average Loss": train_loss_ave,
+            "Learning Rate": current_lr
+        })
         
-        # Save checkpoint
+        # Save checkpoint & loss plot
+        save_loss_image()
         torch.save({
             'epoch': epoch,
             'model_state_dict': bigcity.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss }, os.path.join(args.checkpoints, f'checkpoint{epoch}.pth'))
 
+        # Early stopping and scheduler step
+        early_stopping(train_loss_ave, bigcity, args.checkpoints)
+        lr_scheduler.step(epoch)
+    
+
 def main():
+    wandb.init(project="bigcity", config=args, name="pretrain")
+
     try:
         train()
     except KeyboardInterrupt:
         logging.info("\nTraining interrupted by user. Generating loss plots...")
-
     finally:
         save_loss_image()
         
-        logging.info(f"Loss plot saved to {plot_filename}")
+        logging.info(f"Loss plot saved to ./image/")
         logging.info(f"total_losses: {total_losses}")
         logging.info(f"road_id_losses: {road_id_losses}")
         logging.info(f"time_features_losses: {time_features_losses}")
         logging.info(f"road_flow_losses: {road_flow_losses}")
+        
+    wandb.finish()
 
 if __name__ == "__main__":
     try:
