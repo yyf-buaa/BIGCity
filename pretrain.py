@@ -147,7 +147,7 @@ def train():
             'epoch': epoch,
             'model_state_dict': bigcity.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss }, os.path.join(args.checkpoints, f'checkpoint{epoch}.pth'))
+            'loss': loss }, os.path.join(args.checkpoints, f'{args.city}_checkpoint{epoch}.pth'))
 
         # Early stopping and scheduler step
         early_stopping(train_loss_ave, bigcity, args.checkpoints)
