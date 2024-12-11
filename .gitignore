@@ -1,6 +1,13 @@
 log/
 runs/
-models/gpt2/
+models/gpt2/*.bin
 __pycache__/
+**/.ipynb_checkpoints/
 */.DS_Store
 *.sh
+**/.DS_Store
+.idea
+checkpoints
+*.png
+wandb/
+plots
