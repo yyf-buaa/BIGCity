@@ -87,11 +87,15 @@ BIGCity employs a two-stage training strategy:
 
 ### Requirements
 
-The following command creates a conda environment named BIGCity
+The following command creates a conda environment named BIGCity. 
 
 ```shell
 conda env create -f environment.yml
 ```
+
+wandb is used to record the loss at training time, please `run wandb login` first.
+
+All checkpoints is stored by default in the./checkpoints folder.
 
 
 
@@ -99,7 +103,7 @@ conda env create -f environment.yml
 
 ```shell
 model_name=GPT4TS
-python run_pretrain.py \
+python pretrain.py \
   --task_name pretrain \
   --is_training 1 \
   --root_path ../dataset/ \
@@ -109,13 +113,13 @@ python run_pretrain.py \
   --model_id 1 \
   --model GPT4TS \
   --data Traj \
-  --devices '1' \
+  --devices '0' \
   --gpt_layers 12 \
   --batch_size  128\
   --d_model 768 \
-  --des 'Exp' \
   --itr 1 \
   --mlp 1 \
+  --use_gpu \
   --learning_rate 2e-4 \
   --train_epochs 200
 ```
@@ -135,13 +139,13 @@ python -u run_traj.py \
   --model $model_name \
   --data Task_Tuning \
   --use_multi_gpu \
-  --devices '1' \
+  --devices '0' \
   --gpt_layers 12 \
   --batch_size  128\
   --d_model 768 \
-  --des 'Exp' \
   --itr 1 \
   --mlp 1 \
+  --use_gpu \
   --learning_rate 1e-5 \
   --train_epochs 30 \
 ```
