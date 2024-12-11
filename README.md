@@ -101,7 +101,6 @@ wandb is used to record the loss at training time, please `run wandb login` firs
 All checkpoints is stored by default in the./checkpoints folder.
 
 
-
 ### stage1:  Mased Renconstruction Training
 
 ```shell
