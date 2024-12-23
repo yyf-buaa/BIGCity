@@ -24,7 +24,7 @@ class DatasetTraj(Dataset):
     def read_traj_data(self):
         logging.info("Start reading trajectory data file.")
         
-        traj_data = pd.read_csv(global_vars.traj_file, delimiter=';')
+        traj_data = pd.read_csv(global_vars.traj_file_short, delimiter=';')
         traj_data = traj_data.sample(frac = args.sample_rate)
         traj_data.reset_index(drop=True, inplace=True)
         

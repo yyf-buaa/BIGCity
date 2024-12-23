@@ -1,15 +1,11 @@
 import os
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import logging
 import traceback
 import numpy as np
-import pandas as pd
-from ast import literal_eval
 import matplotlib.pyplot as plt
-from datetime import datetime
 from tqdm import tqdm
 import wandb
 
@@ -21,8 +17,6 @@ from config.global_vars import device
 from data_provider.data_loader import DatasetTraj
 from data_provider import file_loader
 
-from models.st_tokenizer import StTokenizer
-from models.backbone import Backbone
 from models.bigcity import BigCity
 
 from utils.tools import EarlyStopping
@@ -76,7 +70,7 @@ def padding_mask(B, L):
 def train():
     for epoch in range(1, args.train_epochs + 1):
         logging.info(f"Epoch: {epoch}")
-        train_loss = []
+        epoch_loss, epoch_road_id_loss, epoch_time_loss, epoch_flow_loss = [], [], [], []
         for batchidx, batch in enumerate(tqdm(data_loader, desc="batch", total=len(data_loader))):
             batch_road_id, batch_time_id, batch_time_features, batch_road_flow = batch
             
@@ -108,22 +102,24 @@ def train():
             
             # Calculate total loss with scaling factors
             loss = road_id_loss * args.loss_alpha + time_features_loss * args.loss_beta + road_flow_loss * args.loss_gamma
-            train_loss.append(loss.item())
+            epoch_loss.append(loss.item())
+            epoch_road_id_loss.append(road_id_loss.item())
+            epoch_time_loss.append(time_features_loss.item())
+            epoch_flow_loss.append(road_flow_loss.item())
             
             # Record the losses for each component
+            total_losses.append(loss.item())
             road_id_losses.append(road_id_loss.item())
             time_features_losses.append(time_features_loss.item())
             road_flow_losses.append(road_flow_loss.item())
-            total_losses.append(loss.item())
             
             # Log losses to wandb
             wandb.log({
-                "Epoch": epoch,
                 "Batch": batchidx,
-                "Road ID Loss": road_id_loss.item(),
-                "Time Features Loss": time_features_loss.item(),
-                "Road Flow Loss": road_flow_loss.item(),
-                "Total Loss": loss.item(),
+                "Batch Total Loss": loss.item(),
+                "Batch Road ID Loss": road_id_loss.item(),
+                "Batch Time Features Loss": time_features_loss.item(),
+                "Batch Road Flow Loss": road_flow_loss.item(),
             })
             
             # Backpropagation
@@ -132,12 +128,16 @@ def train():
             optimizer.zero_grad()
             
         # Calculate average training loss for this epoch
-        train_loss_ave = np.average(train_loss)
+        epoch_loss_ave, epoch_road_id_loss_ave, epoch_time_loss_ave, epoch_flow_loss_ave = np.average(
+            epoch_loss), np.average(epoch_road_id_loss), np.average(epoch_time_loss), np.average(epoch_flow_loss)
         current_lr = optimizer.param_groups[0]['lr']
-        logging.info(f"Epoch {epoch}, Average Loss: {train_loss_ave}")
+        logging.info(f"Epoch {epoch}, Average Loss: {epoch_loss_ave}")
         logging.info(f"Learning Rate: {current_lr}")
         wandb.log({
-            "Epoch Average Loss": train_loss_ave,
+            "Epoch Average Total Loss": epoch_loss_ave,
+            "Epoch Average Road ID Loss": epoch_road_id_loss_ave,
+            "Epoch Average Time Features Loss": epoch_time_loss_ave,
+            "Epoch Average Road Flow Loss": epoch_flow_loss_ave,
             "Learning Rate": current_lr
         })
         
@@ -150,7 +150,7 @@ def train():
             'loss': loss }, os.path.join(args.checkpoints, f'{args.city}_checkpoint{epoch}.pth'))
 
         # Early stopping and scheduler step
-        early_stopping(train_loss_ave, bigcity, args.checkpoints)
+        early_stopping(epoch_loss_ave, bigcity, args.checkpoints)
         lr_scheduler.step(epoch)
     
 
