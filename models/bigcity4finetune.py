@@ -6,7 +6,6 @@ from config.global_vars import device
 from models.st_tokenizer import StTokenizer
 from models.backbone import Backbone
 
-
 class BigCity(nn.Module):
     def __init__(self):
         super(BigCity, self).__init__()

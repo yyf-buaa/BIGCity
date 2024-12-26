@@ -123,9 +123,10 @@ def train():
             })
             
             # Backpropagation
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
+
             
         # Calculate average training loss for this epoch
         epoch_loss_ave, epoch_road_id_loss_ave, epoch_time_loss_ave, epoch_flow_loss_ave = np.average(
@@ -155,7 +156,7 @@ def train():
     
 
 def main():
-    wandb.init(project="bigcity", config=args, name="pretrain")
+    wandb.init(mode="offline", project="bigcity", config=args, name="pretrain")
 
     try:
         train()
