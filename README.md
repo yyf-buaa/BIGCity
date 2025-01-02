@@ -3,13 +3,13 @@
 # Motivation：
 The novelty of this paper is using a unified model to handle tasks involving both "trajectory" and "traffic state." Applications like navigation apps require both data types—users need traffic predictions and optimal paths (trajectories). Fundamentally, traffic states are derived from individual trajectories, so integrating them enhances model performance. This was often overlooked in prior research, and we fill that gap.
 
-<div align="center"><img src=image/Article/MTSD_Model.png width=100% /> <!--<figcaption>Figure 1 : The Comparison Between BIGCity and Traditional ST Models</figcaption>--> </div>
+<div align="center"><img src=image/Article/MTSD_Model.png width=100% /> <figcaption>Figure 1 : The Comparison Between BIGCity and Traditional ST Models</figcaption> </div>
 
 <br>
 
 <bf>
 
-As shown in the below figure, BIGCity is a MTMD model. Traffic state tasks contains one-step prediction (O-Step), multi-step prediction (M-Step), and traffic state imputation (TSI); Trajectory tasks includes travel time estimation (TTE), next hop prediction (NexH), most similar trajectory search (Simi), trajectory classification (CLAS), and trajectory recovery (Reco).
+As shown in the Figure 1, BIGCity is a MTMD model. Traffic state tasks contains one-step prediction (O-Step), multi-step prediction (M-Step), and traffic state imputation (TSI); Trajectory tasks includes travel time estimation (TTE), next hop prediction (NexH), most similar trajectory search (Simi), trajectory classification (CLAS), and trajectory recovery (Reco).
 
 # Challenges:
 The main challenges lies in how to unify heterogeneous data and heterogeneous task.
@@ -32,17 +32,17 @@ Hetero data all originate from the city's road network, and each node in road ne
 
 ### 1) The representation of road network
 
-As Shown in below figure, ST tokenizer incorporates a static encoder and a dynamic encoder to separately model these static and dynamic features. Additionally, we designed a fusion encoder to integrate these two representations, generating dynamic road network representation.
+As Shown in Figure 2, ST tokenizer incorporates a static encoder and a dynamic encoder to separately model these static and dynamic features. Additionally, we designed a fusion encoder to integrate these two representations, generating dynamic road network representation.
 
-<div align="center"><img src=image/Article/model_architecture.png width=70% /> <!--<figcaption>Figure 2 : The Architecture of BIGCity</figcaption>--> </div>
+<div align="center"><img src=image/Article/model_architecture.png width=70% /> <figcaption>Figure 2 : The Architecture of BIGCity</figcaption> </div>
 
 ### 2) The representation of ST data
 
-As shown in below figure, We find that either trajectory and traffic state is essentially a sequence, sampling from the dynamic road network. 
+As shown in Figure 3, We find that either trajectory and traffic state is essentially a sequence, sampling from the dynamic road network. 
 From that view, the most difference between trajectory and traffic state lies in sampling manner
 Therefore, we designed STUnit to unified both trajectory and traffic state data into sequence format.
 
-<div align="center"><img src=image/Article/Figure2.png width=100% /> <!--<figcaption>Figure 3 : From STunit to ST feature Tokens </figcaption>--> </div>
+<div align="center"><img src=image/Article/Figure2.png width=70% /> <figcaption>Figure 3 : From STunit to ST feature Tokens </figcaption> </div>
 
 <br>
 
@@ -61,11 +61,11 @@ Specifically : we first categorize ST tasks into four major types (see in paper'
 
 Then, we designed task placeholders to act as output markers, indicating the type and quantity of outputs for each task. Further, we provide individual prompt templates for each task to specify the task type. Details of these templates can be found in the section V.A. The following figures show templates in certain tasks as examples.
 
-<div align="center"><img src=image/Article/template_1.png width=100% /></div>
+<div align="center"><img src=image/Article/template_1.png width=90% /></div>
 
 <br>
 
-<div align="center"><img src=image/Article/template_2.png width=100% /> <!--<figcaption>Figure 4 : Examples of Prompt Temples </figcaption>--> </div>
+<div align="center"><img src=image/Article/template_2.png width=90% /> <figcaption>Figure 4 : Examples of Prompt Temples </figcaption> </div>
 
 ## 3. Model Training (Section VI)
 
@@ -76,10 +76,7 @@ BIGCity employs a two-stage training strategy:
 2. Task-Oriented Prompt Tuning: Prompt tuning: With the aid of task-oriented prompts, the model is jointly fine-tuned on omultiple tasks. After this stage, model is capable of multi-task ability.
 
 
-<div align="center"><img src=image/Article/training.png width=80% /> <!--<figcaption>Figure 5 : The training of BIGCity </figcaption>--> </div>
-
-
-
+<div align="center"><img src=image/Article/training.png width=90% /> <figcaption>Figure 5 : The training of BIGCity </figcaption> </div>
 
 
 <br>
@@ -90,22 +87,18 @@ BIGCity employs a two-stage training strategy:
 
 ### Requirements
 
-The following command creates a conda environment named BIGCity. 
+The following command creates a conda environment named BIGCity
 
 ```shell
 conda env create -f environment.yml
 ```
-
-wandb is used to record the loss at training time, please `run wandb login` first.
-
-All checkpoints is stored by default in the./checkpoints folder.
 
 
 ### stage1:  Mased Renconstruction Training
 
 ```shell
 model_name=GPT4TS
-python pretrain.py \
+python run_pretrain.py \
   --task_name pretrain \
   --is_training 1 \
   --root_path ../dataset/ \
@@ -115,13 +108,13 @@ python pretrain.py \
   --model_id 1 \
   --model GPT4TS \
   --data Traj \
-  --devices '0' \
+  --devices '1' \
   --gpt_layers 12 \
   --batch_size  128\
   --d_model 768 \
+  --des 'Exp' \
   --itr 1 \
   --mlp 1 \
-  --use_gpu \
   --learning_rate 2e-4 \
   --train_epochs 200
 ```
@@ -141,13 +134,13 @@ python -u run_traj.py \
   --model $model_name \
   --data Task_Tuning \
   --use_multi_gpu \
-  --devices '0' \
+  --devices '1' \
   --gpt_layers 12 \
   --batch_size  128\
   --d_model 768 \
+  --des 'Exp' \
   --itr 1 \
   --mlp 1 \
-  --use_gpu \
   --learning_rate 1e-5 \
   --train_epochs 30 \
 ```
@@ -208,16 +201,14 @@ python -u run_traj.py \
 
 
 
-# Model Weights and Datasets
-
-**Model Weights** : https://huggingface.co/XieYuBUAA/BIGCity/tree/main
-
-**Datasets** : https://huggingface.co/datasets/XieYuBUAA/BIGCity_Dataset/tree/main
-
-**Training Logs** : https://wandb.ai/iurww/bigcity/workspace?nw=nwuseriurww
 
 
-# Standard Deviation:
+
+
+
+
+
+# standard deviation:
 
 We listed the error bar of BIGCity on each metrics of each task among all three city dataset. The details are presented in the following table:
 
@@ -272,3 +263,5 @@ The Performance in Multi-Step Traffic State Imputation:
 | MAE       | MAPE       |  RMSE     |   MAE     |   MAPE     |    RMSE   |
 | --------- | ---------- | --------- | --------- | ---------- | --------- |
 | 0.536±2E-3 | 6.671±5E-2 | 1.335±2E-3 | 0.665±1E-3 | 8.192±3E-1 | 1.617±8E-4 |
+
+# BIGCity
