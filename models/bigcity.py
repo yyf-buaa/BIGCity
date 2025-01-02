@@ -12,6 +12,8 @@ class BigCity(nn.Module):
         super(BigCity, self).__init__()
         
         self.tokenizer = StTokenizer().to(device)
+        
+        # 0: clas; 1: reg
         self.special_token = nn.Embedding(num_embeddings=2, embedding_dim=args.d_model).to(device)
                 
         self.backbone = Backbone().to(device)
