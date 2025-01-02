@@ -76,7 +76,7 @@ BIGCity employs a two-stage training strategy:
 2. Task-Oriented Prompt Tuning: Prompt tuning: With the aid of task-oriented prompts, the model is jointly fine-tuned on omultiple tasks. After this stage, model is capable of multi-task ability.
 
 
-<div align="center"><img src=image/Article/training.png width=90% /> <figcaption>Figure 5 : The training of BIGCity </figcaption> </div>
+<div align="center"><img src=image/Article/training.png width=100% /> <figcaption>Figure 5 : The training of BIGCity </figcaption> </div>
 
 
 <br>
