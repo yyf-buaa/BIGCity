@@ -94,29 +94,18 @@ conda env create -f environment.yml
 ```
 
 
-### stage1:  Mased Renconstruction Training
+### stage1:  Masked Renconstruction Training
 
 ```shell
-model_name=GPT4TS
-python run_pretrain.py \
+python pretrain.py \
   --task_name pretrain \
-  --is_training 1 \
+  --use_gpu \
   --root_path ../dataset/ \
   --city xa \
-  --freq s\
   --mask_rate 0.7 \
-  --model_id 1 \
-  --model GPT4TS \
-  --data Traj \
-  --devices '1' \
-  --gpt_layers 12 \
-  --batch_size  128\
-  --d_model 768 \
-  --des 'Exp' \
-  --itr 1 \
-  --mlp 1 \
+  --batch_size 32 \
   --learning_rate 2e-4 \
-  --train_epochs 200
+  --train_epochs 40 \
 ```
 
 
@@ -124,25 +113,14 @@ python run_pretrain.py \
 ### stage2:  Task Oriented Prompt Tuning
 
 ```shell
-model_name=GPT4Finetune
-python -u run_traj.py \
-  --task_name task_tuning \
-  --is_training 1 \
+python finetune.py \
+  --task_name next_hop \
+  --use_gpu \
   --root_path ../dataset/ \
   --city xa \
-  --freq s\
-  --model $model_name \
-  --data Task_Tuning \
-  --use_multi_gpu \
-  --devices '1' \
-  --gpt_layers 12 \
-  --batch_size  128\
-  --d_model 768 \
-  --des 'Exp' \
-  --itr 1 \
-  --mlp 1 \
-  --learning_rate 1e-5 \
-  --train_epochs 30 \
+  --batch_size 32 \
+  --learning_rate 2e-4 \
+  --train_epochs 40 \
 ```
 
 
