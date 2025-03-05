@@ -53,7 +53,7 @@ class BigCity4FineTune(BigCity):
         batch_tokens = self.tokenizer(batch_road_id, batch_time_id, batch_time_features)
         B, L, D = batch_tokens.shape
         Dtf = 6
-        
+                
         if self.task_name == "next_hop":
             clas_token = self.special_token(torch.tensor([0]).to(device)).expand(B, 1, 1)
             batch_psm_tokens = torch.cat([self.NEXT_PROMPT.expand(B, -1, -1), batch_tokens, clas_token], dim=1)
@@ -76,7 +76,7 @@ class BigCity4FineTune(BigCity):
             batch_psm_tokens = torch.cat([self.TRAFFIC_STATE_REGRESS_PROMPT.expand(B, -1, -1), batch_tokens, reg_token], dim=1)
             clas_output, time_output, reg_output = self.backbone(batch_psm_tokens)
             predict_states = reg_output[:, -L:, :]
-            traffic_state_loss = F.mse_loss(predict_states.reshape(-1), batch_road_flow.view(-1))
+            traffic_state_loss = F.mse_loss(predict_states.reshape(-1), batch_road_flow.view(-1)) 
             return traffic_state_loss
         
         elif self.task_name == "traj_recover":

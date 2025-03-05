@@ -20,6 +20,7 @@ class Backbone(nn.Module):
         super(Backbone, self).__init__()
         
         self.road_cnt = file_loader.road_cnt
+        self.traj_category_cnt = file_loader.traj_category_cnt
         self.d_time_feature = 6
         
         self.LORA_R = 8
@@ -29,7 +30,7 @@ class Backbone(nn.Module):
         self.gpt2_config = None
         self.lora_config = None
         self.gpt2 = None
-        self.mlp_c, self.mlp_t, self.mlp_r = None, None, None
+        self.mlp_c, self.mlp_t, self.mlp_r, self.mlp_c1 = None, None, None, None
         self.build_model()
         
         logging.info("Finish initializing the BIGCity backbone")
@@ -79,10 +80,11 @@ class Backbone(nn.Module):
         
         logging.info(f"Total number of LoRA learnable parameters: {lora_params}")
         
-        Dm, Dtf, N = args.d_model, self.d_time_feature, self.road_cnt
+        Dm, Dtf, N, Nclas = args.d_model, self.d_time_feature, self.road_cnt, self.traj_category_cnt
         self.mlp_c = MLP(Dm, Dm, N)
         self.mlp_t = MLP(Dm, Dm, Dtf)
         self.mlp_r = MLP(Dm, Dm, 1)
+        self.mlp_c1 = MLP(Dm, Dm, Nclas)
         
         logging.info(f"Downstream tasks mlp: \n"
                      f"Classification: {self.mlp_c} \n"

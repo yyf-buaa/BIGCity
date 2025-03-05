@@ -2,7 +2,7 @@ pandas==2.2.3
 numpy==2.0.2
 tqdm==4.66.5
 torch-geometric==2.6.1
-torch==2.5.0
+torch==2.6.0
 peft==0.13.2
 wandb==0.19.0
 matplotlib==3.9.2

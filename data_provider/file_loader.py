@@ -7,6 +7,7 @@ import os
 
 from config import global_vars
 from config import logging_config
+from config.args_config import args
 
 
 def load_road_relation_file():
@@ -32,9 +33,12 @@ def load_road_features_file():
     
     static_features = torch.tensor(static_data.to_numpy(), dtype=torch.int64)
     
+    static_features = torch.cat((static_features, torch.zeros(2, static_features.shape[1], dtype=torch.int64)), dim=0)
+    
     logging.info("Finish reading static features file. \n"
                     f"The number of vertices in the graph: {road_cnt}, \n"
                     f"Shape of static features: {static_features.shape} \n")
+    
     
     logging.info("Start reading dynamic features file.")
     
@@ -77,10 +81,25 @@ def load_road_features_file():
         
     return static_features, dynamic_features, road_cnt, time_slots_cnt
 
+def load_traj_dataset_file():
+    logging.info("Start reading trajectory data file.")
+    traj_data = pd.read_csv(global_vars.traj_file_short, delimiter=';')
+    traj_data = traj_data.sample(frac = args.sample_rate)
+    traj_data.reset_index(drop=True, inplace=True)
+    
+    traj_data_cnt = len(traj_data)
+    
+    traj_category_cnt = len(set(traj_data["usr_id"]))
+    
+    logging.info("Finish reading trajectory data file.\n"
+                 f"The number of trajectories: {traj_data_cnt} \n"
+                 f"The number of trajectories categories: {traj_category_cnt} \n")
+    
+    return traj_data, traj_data_cnt, traj_category_cnt
 
 edges, edge_weight, edge_cnt = load_road_relation_file()
 static_features, dynamic_features, road_cnt, time_slots_cnt = load_road_features_file()
+traj_data, traj_data_cnt, traj_category_cnt = load_traj_dataset_file()
 
-    
         
         
