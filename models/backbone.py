@@ -20,6 +20,7 @@ class Backbone(nn.Module):
         super(Backbone, self).__init__()
         
         self.road_cnt = file_loader.road_cnt
+        self.traj_category_cnt = file_loader.traj_category_cnt
         self.d_time_feature = 6
         
         self.LORA_R = 8
@@ -29,12 +30,17 @@ class Backbone(nn.Module):
         self.gpt2_config = None
         self.lora_config = None
         self.gpt2 = None
-        self.mlp_c, self.mlp_t, self.mlp_r = None, None, None
+        self.tasks_mlp = nn.ModuleDict({
+            "road_clas": None,
+            "time_reg": None,
+            "state_reg": None,
+            "tul_clas": None,
+        })
         self.build_model()
         
         logging.info("Finish initializing the BIGCity backbone")
         
-    def forward(self, x):   
+    def forward(self, x, activate_heads):   
         B, Lpad = x.shape[0], x.shape[1]
         
         # add position embedding
@@ -50,11 +56,11 @@ class Backbone(nn.Module):
         x = self.gpt2.ln_f(x)
             
         # mlp for downstream tasks
-        clas_out = self.mlp_c(x)
-        time_out = self.mlp_t(x)
-        reg_out = self.mlp_r(x)
+        outputs = {
+            name: self.tasks_mlp[name](x) for name in activate_heads # if self.tasks_mlp[name] is not None
+        }
         
-        return clas_out, time_out, reg_out
+        return outputs
     
     def build_model(self):
         self.gpt2_config = GPT2Config.from_pretrained('./models/gpt2')
@@ -79,13 +85,16 @@ class Backbone(nn.Module):
         
         logging.info(f"Total number of LoRA learnable parameters: {lora_params}")
         
-        Dm, Dtf, N = args.d_model, self.d_time_feature, self.road_cnt
-        self.mlp_c = MLP(Dm, Dm, N)
-        self.mlp_t = MLP(Dm, Dm, Dtf)
-        self.mlp_r = MLP(Dm, Dm, 1)
+        Dm, Dtf, N, Nclas = args.d_model, self.d_time_feature, self.road_cnt, self.traj_category_cnt
+        self.tasks_mlp = nn.ModuleDict({
+            "road_clas": MLP(Dm, Dm, N),     # road clas
+            "time_reg": MLP(Dm, Dm, Dtf),    # time reg
+            "state_reg": MLP(Dm, Dm, 1),           # traffic state reg
+            "tul_clas": MLP(Dm, Dm, Nclas)   # traj reg
+        })
         
         logging.info(f"Downstream tasks mlp: \n"
-                     f"Classification: {self.mlp_c} \n"
-                     f"Time prediction: {self.mlp_t} \n"
-                     f"Regression: {self.mlp_r} \n")
+                     f"Classification: {self.tasks_mlp["road_clas"]} \n"
+                     f"Time prediction: {self.tasks_mlp["time_reg"]} \n"
+                     f"Regression: {self.tasks_mlp["state_reg"]} \n")
         

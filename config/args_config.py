@@ -3,8 +3,8 @@ import argparse
 parser = argparse.ArgumentParser(description='Trajectory LM')
 
 # basic config
-parser.add_argument('--task_name', type=str, required=False, default='time_reg',
-                    help='task name, options:[next_hop, time_regress, traffic_state_regress, traj_recover, traj_traj_classify]')
+parser.add_argument('--task_name', type=str, required=False, default='imputation',
+                    help='task name, options:[long_term_forecast, short_term_forecast, imputation, classification, anomaly_detection]')
 parser.add_argument('--is_training', type=int, required=False, default=1, help='status')
 parser.add_argument('--model_id', type=str, required=False, default='test', help='model id')
 parser.add_argument('--model', type=str, required=False, default='Autoformer',

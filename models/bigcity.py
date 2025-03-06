@@ -27,6 +27,7 @@ class BigCity(nn.Module):
         
         # mask
         mask_batch_tokens = batch_tokens.masked_fill(mask.unsqueeze(-1).expand(-1, -1, D) == 0, 0)
+        # batch_tokens[mask == 0, :] = 0 # Which is better?
         
         # add special tokens: (clas, reg)
         clas_token = self.special_token(torch.tensor([0]).to(device)).expand(B, num_mask, D)  # (B, num_mask, D)
@@ -35,7 +36,8 @@ class BigCity(nn.Module):
         batch_psm_tokens = torch.cat([mask_batch_tokens, special_tokens], dim=1) # (B, L + 2*num_mask, D)
         
         # backbone
-        clas_output, time_output, reg_output = self.backbone(batch_psm_tokens)
+        output = self.backbone(batch_psm_tokens, ["road_clas", "time_reg", "state_reg"])
+        clas_output, time_output, reg_output = output["road_clas"], output["time_reg"], output["state_reg"]
         
         # get output special tokens
         clas_indices = torch.arange(-2 * num_mask, 0, 2).to(device)

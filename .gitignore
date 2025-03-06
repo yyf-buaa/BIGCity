@@ -1,7 +1,6 @@
 log/
 runs/
-models/gpt2/*.bin
-models/gpt2/*
+models/gpt2/
 __pycache__/
 **/.ipynb_checkpoints/
 */.DS_Store
@@ -10,5 +9,7 @@ __pycache__/
 .idea
 checkpoints
 *.png
-wandb
+wandb/
 plots
+
+test*

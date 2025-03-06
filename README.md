@@ -78,13 +78,37 @@ BIGCity employs a two-stage training strategy:
 
 <div align="center"><img src=image/Article/training.png width=80% /> <!--<figcaption>Figure 5 : The training of BIGCity </figcaption>--> </div>
 
-
-
-
-
 <br>
 
 <br>
+
+# Data Description
+We evaluated BIGCity on three real-world datasets: Beijing (BJ), Xi'an (XA), and Chengdu (CD). The BJ dataset consists of taxi trajectories collected in November 2015, and the XA and CD datasets include online car-hailing trajectories from November 2018. For experiments, XA and CD datasets were split $6:2:2$ for training, validation, and testing, while BJ was split $8:1:1$. Dataset statistics are provided in following table. 
+
+You can run **split_data.py** in utils to process trajectory data first.
+
+| Dataset | bj | xa | cd |
+|:-------------------------:|:--------------------:|:--------------------:|:--------------------:|
+| Time Span               | one month          | one month          | one month          |
+| Trajectory              | 1018312            | 384618             | 559729             |
+| User Number             | 1677               | 26787              | 48295              |
+| Road Segments           | 40306              | 5269               | 6195               |
+
+
+The Road networks for all three cities were extracted from OpenStreetMap (OSM), and trajectories were map-matched to the networks to compute traffic states. Each time slice for traffic states spans 30 minutes. Due to sparse trajectories in the BJ dataset, dynamic traffic state features from ST units (Eq.~\eqref{eq:traffic_series}) were excluded, a limitation common in trajectory datasets. 
+
+# Evaluation Metrics
+Trajectory Travel Time Estimation: we adopt three metrics, including mean absolute error (MAE), mean absolute percentage error (MAPE), and root mean square error (RMSE).
+
+Next Hop Prediction: Following the settings in START, we used three metrics: Accuracy (ACC), mean reciprocal rank at 5 (MRR@5) and Normalized Discounted Cumulative Gain at 5 (NDCG@5).
+
+Trajectory Classification: We use Accuracy (ACC), F1-score (F1), and Area Under ROC (AUC) to evaluate binary classification on BJ dataset. Using Micro-F1, Macro-F1 and Macro-Recall on XA and CD datasets.
+
+Most similar trajectory search: we evaluated the model using Top-1 Hit Rate (HR@1), Top-5 Hit Rate (HR@5), and Top-10 Hit Rate (HR@10), where Top-k Hit rate indicates the probability that the ground truth is in the top-k most similar samples ranked by the model.
+
+Metrics used in traffic state tasks are: MAE, MAPE, RMSE.
+
+Trajectory Recovery: We evaluated our model on three types of mask ratios: $85\%$, $90\%$, $95\%$. The evaluation metric is the recovery accuracy and Macro-F1 on masked road segments.
 
 # Training
 
@@ -93,7 +117,9 @@ BIGCity employs a two-stage training strategy:
 The following command creates a conda environment named BIGCity. 
 
 ```shell
-conda env create -f environment.yml
+conda create --name bigcity python=3.12.9
+conda activate bigcity
+pip install -r requirements.txt
 ```
 
 wandb is used to record the loss at training time, please `run wandb login` first.
@@ -110,10 +136,10 @@ python pretrain.py \
   --use_gpu \
   --root_path ../dataset/ \
   --city xa \
-  --mask_rate 0.7 \
+  --mask_rate 0.5 \
   --batch_size 32 \
   --learning_rate 2e-4 \
-  --train_epochs 40 \
+  --train_epochs 20 \
 ```
 
 
@@ -122,69 +148,13 @@ python pretrain.py \
 
 ```shell
 python finetune.py \
-  --task_name next_hop \
   --use_gpu \
   --root_path ../dataset/ \
   --city xa \
   --batch_size 32 \
   --learning_rate 2e-4 \
-  --train_epochs 40 \
+  --train_epochs 20 \
 ```
-
-
-
-### Description of command line parameters
-
-- `--task_name`: Task name, options include: long-term forecast, short-term forecast, imputation, classification, anomaly detection, etc.
-- `--is_training`: Whether in training state (1 means yes, 0 means no).
-- `--model_id`: Model identifier, used to distinguish different model instances.
-- `--model`: The model name, e.g., Autoformer, Transformer, TimesNet, etc.
-- `--data`: Dataset type.
-- `--root_path`: Root directory of the data files.
-- `--city`: The city corresponding to the dataset.
-- `--embedding_model`: The name of the road embedding model.
-- `--freq`: Frequency for time feature encoding, e.g., second, minute, hour, etc.
-- `--checkpoints`: Path to save model checkpoints.
-- `--mask_rate`: Mask ratio, i.e., the proportion of the input sequence randomly masked.
-- `--num_kernels`: Number of kernels in the Inception module.
-- `--d_model`: Model dimension size.
-- `--n_heads`: Number of attention heads in multi-head attention.
-- `--e_layers`: Number of encoder layers.
-- `--d_layers`: Number of decoder layers.
-- `--d_ff`: Dimension of the feed-forward network layer.
-- `--moving_avg`: Size of the moving average window.
-- `--factor`: Attention factor.
-- `--distil`: Whether to use distillation in the encoder, default is `True`.
-- `--dropout`: Dropout rate.
-- `--embed`: Time feature encoding method, options include: `timeF`, `fixed`, `learned`.
-- `--activation`: Activation function type.
-- `--output_attention`: Whether to output attention weights from the encoder.
-- `--num_workers`: Number of data loader workers.
-- `--itr`: Number of experimental repetitions.
-- `--train_epochs`: Number of training epochs.
-- `--batch_size`: Batch size.
-- `--patience`: Early stopping patience.
-- `--learning_rate`: Learning rate.
-- `--des`: Experiment description.
-- `--loss`: Loss function type.
-- `--lradj`: Learning rate adjustment strategy.
-- `--use_amp`: Whether to use automatic mixed precision training.
-- `--use_gpu`: Whether to use GPU.
-- `--gpu`: GPU ID.
-- `--use_multi_gpu`: Whether to use multiple GPUs.
-- `--devices`: List of device IDs when using multiple GPUs.
-- `--p_hidden_dims`: Hidden layer dimensions of the projector (list).
-- `--p_hidden_layers`: Number of hidden layers in the projector.
-- `--gpt_layers`: Number of layers in the GPT model.
-- `--ln`: Whether to use layer normalization.
-- `--mlp`: Whether to use MLP (Multi-Layer Perceptron).
-- `--weight`: Weight coefficient.
-- `--percent`: Percentage.
-- `--loss_alpha, --loss_beta, --loss_gamma`: Weight distribution for multi-loss terms.
-- `--checkpoint_name`: Name of a specific checkpoint.
-- `--gpt2_checkpoint_name`: GPT-2 model checkpoint name.
-- `--sample_rate`: Sampling rate.
-
 
 
 # Model Weights and Datasets

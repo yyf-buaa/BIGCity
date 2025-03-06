@@ -14,17 +14,36 @@ import config.random_seed
 from config.args_config import args
 from config.global_vars import device
 
-from data_provider.data_loader import DatasetTraj
 from data_provider import file_loader
+from data_provider.data_loader import DatasetNextHop, DatasetTrajClassify, DatasetTimeReg, DatasetTrafficStateReg, DatasetTrajRecover
 
 from models.bigcity4finetune import BigCity4FineTune
 
 from utils.tools import EarlyStopping
 from utils.scheduler import CosineLRScheduler
+from utils.round_iterator import RoundRobinIterator
 
 
-dataset = DatasetTraj()
-data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+datasets = {
+    "next_hop": DatasetNextHop(),
+    "traj_classify": DatasetTrajClassify(),
+    "time_reg": DatasetTimeReg(),
+    "traffic_state_reg": DatasetTrafficStateReg(),
+    "traj_recover": DatasetTrajRecover()
+}
+
+total_losses = {
+    "next_hop": [],
+    "traj_classify": [],
+    "time_reg": [],
+    "traffic_state_reg": [],
+    "traj_recover": []
+}
+
+dataloaders = {
+    name: DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+    for name, dataset in datasets.items()
+}
 bigcity = BigCity4FineTune()
 
 early_stopping = EarlyStopping(patience=args.patience, verbose=True)
@@ -33,87 +52,77 @@ lr_scheduler = CosineLRScheduler(
     optimizer, args.train_epochs, lr_min=0, decay_rate=0.1,
     warmup_t=40, warmup_lr_init=args.learning_rate / 20, t_in_epochs=True)
 
-# Initialize loss records at the beginning of the training loop
-total_losses = []
-
-
-def padding_mask(B, L):
-    mask = torch.ones(B, L)
-    num_mask = int(args.mask_rate * L)
-    for i in range(B):
-        indices_to_mask = torch.randperm(L, dtype=torch.long)[:num_mask]
-        mask[i][indices_to_mask] = 0
-    return mask.to(device), num_mask
 
 def train():
     for epoch in range(1, args.train_epochs + 1):
-        logging.info(f"Epoch: {epoch}")
-        epoch_loss = []
-        for batchidx, batch in enumerate(tqdm(data_loader, desc="batch", total=len(data_loader))):
-            batch_road_id, batch_time_id, batch_time_features, batch_road_flow = batch
+        iterator = RoundRobinIterator(dataloaders)
+        
+        epoch_losses = {
+            "next_hop": [],
+            "traj_classify": [],
+            "time_reg": [],
+            "traffic_state_reg": [],
+            "traj_recover": []
+        }
+        
+        progress_bar = tqdm(
+            enumerate(iterator), 
+            total=len(iterator), 
+            desc=f"Epoch {epoch}/{args.train_epochs}", 
+            unit="batch"
+        )
+        
+        for batch_idx, (task_name, (batch_road_id, batch_time_id, batch_time_features, batch_label)) in progress_bar:
+            progress_bar.set_description(f"Epoch {epoch}/{args.train_epochs} - Task: {task_name: <18}")
             
             # Move data to GPU
             batch_road_id = batch_road_id.to(device)
             batch_time_id = batch_time_id.to(device)
-            batch_time_features = batch_time_features.to(device)
-            batch_road_flow = batch_road_flow.to(device)
-
-            B, L, N, Dtf = batch_road_id.shape[0], batch_road_id.shape[1], file_loader.road_cnt, 6
+            batch_time_features = batch_time_features.to(device)    
+            batch_label = batch_label.to(device)
             
-            # Get mask
-            mask, num_mask = padding_mask(B, L)
-            
-            # Forward pass
+            # Forward pass (loss has been calculated)
             loss = bigcity(
-                batch_road_id, batch_time_id, batch_time_features, batch_road_flow, mask, num_mask
+                task_name, batch_road_id, batch_time_id, batch_time_features, batch_label
             )
             
-            epoch_loss.append(loss.item())
-            total_losses.append(loss.item())
+            # Record loss
+            epoch_losses[task_name].append(loss.item())
+            total_losses[task_name].append(loss.item())
             
             # Log losses to wandb
-            wandb.log({
-                "Batch": batchidx,
-                "Batch Total Loss": loss.item(),
-            })
+            wandb.log({f"{task_name}_batch_loss": loss.item()})
             
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
-            
+        
         # Calculate average training loss for this epoch
-        epoch_loss_ave = np.average(epoch_loss)
-        current_lr = optimizer.param_groups[0]['lr']
-        logging.info(f"Epoch {epoch}, Average Loss: {epoch_loss_ave}")
-        logging.info(f"Learning Rate: {current_lr}")
-        wandb.log({
-            "Epoch Average Total Loss": epoch_loss_ave,
-            "Learning Rate": current_lr
-        })
+        average_losses = {f"{task_name}_epoch_average_loss": np.average(task_losses) 
+                          for task_name, task_losses in epoch_losses.items()}
+        logging.info(average_losses)
+        wandb.log(average_losses)
         
         # Save checkpoint
         torch.save({
             'epoch': epoch,
             'model_state_dict': bigcity.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss }, os.path.join(args.checkpoints, f'{args.city}_checkpoint{epoch}.pth'))
-
-        # Early stopping and scheduler step
-        early_stopping(epoch_loss_ave, bigcity, args.checkpoints)
+            'loss': loss }
+            , os.path.join(args.checkpoints, f'{args.city}_finetune_checkpoint{epoch}.pth'))
+        
+        # Step the learning rate scheduler
         lr_scheduler.step(epoch)
-    
 
 def main():
-    wandb.init(mode="offline", project="bigcity", config=args, name="pretrain")
+    wandb.init(mode="online", project="bigcity", config=args, name="pretrain")
 
     try:
         train()
     except KeyboardInterrupt:
-        logging.info("\nTraining interrupted by user. Generating loss plots...")
+        logging.info("\nTraining interrupted by user.")
     finally:
-        logging.info(f"Loss plot saved to ./image/")
         logging.info(f"total_losses: {total_losses}")
         
     wandb.finish()
