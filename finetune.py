@@ -101,7 +101,7 @@ def train():
         # Calculate average training loss for this epoch
         average_losses = {f"{task_name}_epoch_average_loss": np.average(task_losses) 
                           for task_name, task_losses in epoch_losses.items()}
-        print(average_losses)
+        logging.info(average_losses)
         wandb.log(average_losses)
         
         # Save checkpoint
