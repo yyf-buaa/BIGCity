@@ -74,7 +74,7 @@ class StTokenizer(nn.Module):
             edge_weight = self.edge_weight.repeat(B)
             de = de.permute(1, 0, 2).reshape(-1, de.shape[-1])
             de = self.dynamic_embedding_layers[1](de, edges, edge_weight)
-            de = de.view(B, N, -1).permute(1, 0, 2)
+            de = de.view(B, N + 1, -1).permute(1, 0, 2)
             
             # dynamic layer 2: MLP
             dynamic_embedding = self.dynamic_embedding_layers[2](de)
@@ -109,7 +109,11 @@ class StTokenizer(nn.Module):
         
     def load_static_features(self):
         self.road_cnt = file_loader.road_cnt
-        self.static_features = file_loader.static_features.to(device)
+        static_features = file_loader.static_features.to(device)
+        
+        # fill in 1 empty road segment id
+        row_zeros = torch.zeros(1, static_features.shape[1], dtype=static_features.dtype, device=static_features.device)
+        self.static_features = torch.cat((static_features, row_zeros), dim=0)
         
     def load_dynamic_features(self):
         self.time_slots_cnt = file_loader.time_slots_cnt
@@ -118,7 +122,13 @@ class StTokenizer(nn.Module):
         N, T, S = self.road_cnt, self.time_slots_cnt, self.slide_window_size
 
         padded_dynamic_features = torch.cat((torch.zeros(N, S).to(device), dynamic_features), dim=1)
-        self.dynamic_features= torch.stack([padded_dynamic_features[:, j - S:j] for j in range(S, T + S)], dim=1)
+        dynamic_features= torch.stack([padded_dynamic_features[:, j - S:j] for j in range(S, T + S)], dim=1)
+        
+        # fill in 1 empty road segment id and 1 empty time slot id
+        row_zeros = torch.zeros(1, dynamic_features.shape[1], S, dtype=dynamic_features.dtype, device=dynamic_features.device)
+        dynamic_features = torch.cat((dynamic_features, row_zeros), dim=0)
+        col_zeros = torch.zeros(dynamic_features.shape[0], 1, S, dtype=dynamic_features.dtype, device=dynamic_features.device)
+        self.dynamic_features = torch.cat((dynamic_features, col_zeros), dim=1)
         
     def build_tokenizer(self):
         logging.info("Start building static ST tokenizer.")

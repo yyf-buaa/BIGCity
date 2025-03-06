@@ -33,8 +33,6 @@ def load_road_features_file():
     
     static_features = torch.tensor(static_data.to_numpy(), dtype=torch.int64)
     
-    static_features = torch.cat((static_features, torch.zeros(2, static_features.shape[1], dtype=torch.int64)), dim=0)
-    
     logging.info("Finish reading static features file. \n"
                     f"The number of vertices in the graph: {road_cnt}, \n"
                     f"Shape of static features: {static_features.shape} \n")

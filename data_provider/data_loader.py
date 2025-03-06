@@ -196,7 +196,7 @@ class DatasetTimeReg(Dataset):
         logging.info("Finish reading time id.")
         
         self.traj_time_features_lists = torch.zeros((self.dataset_len, args.seq_len, 6), dtype=torch.float32)
-        logging.info("Finish reading time features.")
+        logging.info("Finish reading time features (masked).")
 
         data_stamp = time_features(pd.to_datetime(self.traj_time_lists.flatten(), unit='s'), freq='s').transpose(1, 0)
         data_stamp = torch.from_numpy(data_stamp)
@@ -236,11 +236,13 @@ class DatasetTrafficStateReg(Dataset):
         traj_data = file_loader.traj_data
         
         self.dataset_len = file_loader.traj_data_cnt
+        road_cnt = file_loader.road_cnt
+        time_slots_cnt = file_loader.time_slots_cnt
         
         self.traj_road_id_lists, self.traj_time_id_lists = self.generate_sequences(
-            self.dataset_len, args.seq_len, file_loader.time_slots_cnt, args.seq_len * 1.5, file_loader.road_cnt, 0.5)
+            self.dataset_len, args.seq_len, time_slots_cnt, args.seq_len * 1.5, road_cnt, 0.5)
         logging.info("Finish reading road id.")
-        logging.info("Finish reading time id.")
+        logging.info("Finish reading time id (unmasked).")
         
         self.traj_time_lists = torch.tensor(global_vars.start_time.timestamp()).to(torch.int64) + self.traj_time_id_lists * global_vars.interval
         
@@ -251,6 +253,9 @@ class DatasetTrafficStateReg(Dataset):
         
         self.traffic_state_regression_labels = file_loader.dynamic_features[self.traj_road_id_lists, self.traj_time_id_lists]
         logging.info("Finish reading time regression labels.")
+        
+        self.traj_time_id_lists.fill_(time_slots_cnt)
+        logging.info("Finish reading time id (masked).")
         
         logging.info(
                 f"Number of trajectories: {self.dataset_len}\n"
@@ -328,19 +333,19 @@ class DatasetTrajRecover(Dataset):
         logging.info("Finish reading recover label.")
                 
         self.traj_road_id_lists[mask == 0] = road_cnt
-        logging.info("Finish reading road id.")
+        logging.info("Finish reading road id (masked).")
         
         self.traj_time_lists = torch.tensor([ x[:args.seq_len] if len(x) > args.seq_len else x + [x[-1]] * (args.seq_len - len(x)) 
                             for x in traj_data["tlist"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
         self.traj_time_id_lists = ((self.traj_time_lists - torch.tensor(global_vars.start_time.timestamp())) // global_vars.interval).to(torch.int32)
         self.traj_time_id_lists[mask == 0] = time_slots_cnt
-        logging.info("Finish reading time id.")
+        logging.info("Finish reading time id (masked).")
         
         data_stamp = time_features(pd.to_datetime(self.traj_time_lists.flatten(), unit='s'), freq='s').transpose(1, 0)
         data_stamp = torch.from_numpy(data_stamp)
         self.traj_time_features_lists = torch.reshape(data_stamp, (self.dataset_len, args.seq_len, data_stamp.shape[-1]))
         self.traj_time_features_lists[mask == 0, :] = 0
-        logging.info("Finish reading time features.")
+        logging.info("Finish reading time features (masked).")
         
         logging.info(
                 f"Number of trajectories: {self.dataset_len}\n"
