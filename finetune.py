@@ -116,7 +116,7 @@ def train():
         lr_scheduler.step(epoch)
 
 def main():
-    wandb.init(mode="offline", project="bigcity", config=args, name="pretrain")
+    wandb.init(mode="online", project="bigcity", config=args, name="pretrain")
 
     try:
         train()
