@@ -6,6 +6,7 @@ import logging
 from ast import literal_eval
 
 from config import global_vars
+from config import random_seed
 from config.args_config import args
 from . import file_loader
 from utils.timefeatures import time_features
@@ -206,7 +207,7 @@ class DatasetTimeReg(Dataset):
                 f"Number of trajectories: {self.dataset_len}\n"
                 f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
                 f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
-                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n",
+                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
                 f"Shape of time_regression_labels: {self.time_regression_labels.shape}, \n")
         
     def __getitem__(self, index):
@@ -220,7 +221,6 @@ class DatasetTimeReg(Dataset):
 
 
 class DatasetTrafficStateReg(Dataset):
-    
     def __init__(self):
         logging.info("Start loading traffic state regression dataset.")
         
@@ -268,8 +268,6 @@ class DatasetTrafficStateReg(Dataset):
     def __len__(self):
         return self.dataset_len
 
-    
-    
     def generate_sequences(self, K, L, T, A, N, P):
         """
         Generate K sequences with probability P of strictly increasing sequences,
@@ -302,7 +300,69 @@ class DatasetTrafficStateReg(Dataset):
 
         return labels, sequences
 
-class DatasetTrajRecover(Dataset):
-    pass
 
+class DatasetTrajRecover(Dataset):
+    def __init__(self):
+        logging.info("Start loading trajectory recover dataset.")
+        
+        super().__init__()
+        
+        self.dataset_len = None
+        self.read_traj_data()
+        
+        logging.info("Finish loading trajectory recover dataset.")
+    
+    def read_traj_data(self):
+        
+        traj_data = file_loader.traj_data
+        
+        self.dataset_len = file_loader.traj_data_cnt
+        road_cnt = file_loader.road_cnt
+        time_slots_cnt = file_loader.time_slots_cnt
+        
+        mask, num_mask = self.padding_mask(self.dataset_len, args.seq_len)
+        
+        self.traj_road_id_lists = torch.tensor([ x[:args.seq_len] if len(x) > args.seq_len else x + [x[-1]] * (args.seq_len - len(x)) 
+                            for x in traj_data["path"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
+        self.traj_recover_labels = self.traj_road_id_lists[mask == 0].reshape(self.dataset_len, -1)
+        logging.info("Finish reading recover label.")
+                
+        self.traj_road_id_lists[mask == 0] = road_cnt
+        logging.info("Finish reading road id.")
+        
+        self.traj_time_lists = torch.tensor([ x[:args.seq_len] if len(x) > args.seq_len else x + [x[-1]] * (args.seq_len - len(x)) 
+                            for x in traj_data["tlist"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
+        self.traj_time_id_lists = ((self.traj_time_lists - torch.tensor(global_vars.start_time.timestamp())) // global_vars.interval).to(torch.int32)
+        self.traj_time_id_lists[mask == 0] = time_slots_cnt
+        logging.info("Finish reading time id.")
+        
+        data_stamp = time_features(pd.to_datetime(self.traj_time_lists.flatten(), unit='s'), freq='s').transpose(1, 0)
+        data_stamp = torch.from_numpy(data_stamp)
+        self.traj_time_features_lists = torch.reshape(data_stamp, (self.dataset_len, args.seq_len, data_stamp.shape[-1]))
+        self.traj_time_features_lists[mask == 0, :] = 0
+        logging.info("Finish reading time features.")
+        
+        logging.info(
+                f"Number of trajectories: {self.dataset_len}\n"
+                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
+                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
+                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
+                f"Shape of traj_recover_labels: {self.traj_recover_labels.shape}, \n")
+        
+    def __getitem__(self, index):
+        return (self.traj_road_id_lists[index],
+                self.traj_time_id_lists[index],  
+                self.traj_time_features_lists[index],
+                self.traj_recover_labels[index])
+            
+    def __len__(self):
+        return self.dataset_len
+    
+    def padding_mask(self, B, L):
+        mask = torch.ones(B, L)
+        num_mask = int(args.mask_rate * L)
+        for i in range(B):
+            indices_to_mask = torch.randperm(L, dtype=torch.long)[:num_mask]
+            mask[i][indices_to_mask] = 0
+        return mask, num_mask
 

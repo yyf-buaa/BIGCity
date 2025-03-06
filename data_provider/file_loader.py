@@ -84,12 +84,14 @@ def load_road_features_file():
 def load_traj_dataset_file():
     logging.info("Start reading trajectory data file.")
     traj_data = pd.read_csv(global_vars.traj_file_short, delimiter=';')
+    traj_data_full = pd.read_csv(global_vars.traj_file, delimiter=';')
+    
     traj_data = traj_data.sample(frac = args.sample_rate)
     traj_data.reset_index(drop=True, inplace=True)
     
     traj_data_cnt = len(traj_data)
     
-    traj_category_cnt = len(set(traj_data["usr_id"]))
+    traj_category_cnt = len(set(traj_data_full["usr_id"]))
     
     logging.info("Finish reading trajectory data file.\n"
                  f"The number of trajectories: {traj_data_cnt} \n"

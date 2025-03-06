@@ -1,5 +1,6 @@
 import os
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import logging
@@ -32,6 +33,8 @@ optimizer = torch.optim.Adam(bigcity.parameters(), lr=args.learning_rate, weight
 lr_scheduler = CosineLRScheduler(
     optimizer, args.train_epochs, lr_min=0, decay_rate=0.1,
     warmup_t=40, warmup_lr_init=args.learning_rate / 20, t_in_epochs=True)
+mse = nn.MSELoss()
+cross_entropy = nn.CrossEntropyLoss()
 
 # Initialize loss records at the beginning of the training loop
 road_id_losses, time_features_losses, road_flow_losses, total_losses = [], [], [], []
@@ -96,9 +99,9 @@ def train():
             real_road_flow = batch_road_flow[mask == 0]
 
             # Calculate individual losses
-            road_id_loss = F.cross_entropy(predict_road_id.view(-1, N), real_road_id)
-            time_features_loss = F.mse_loss(predict_time_features.view(-1, Dtf), real_time_features)
-            road_flow_loss = F.mse_loss(predict_road_flow.view(-1), real_road_flow)
+            road_id_loss = cross_entropy(predict_road_id.view(-1, N), real_road_id)
+            time_features_loss = mse(predict_time_features.view(-1, Dtf), real_time_features)
+            road_flow_loss = mse(predict_road_flow.view(-1), real_road_flow)
             
             # Calculate total loss with scaling factors
             loss = road_id_loss * args.loss_alpha + time_features_loss * args.loss_beta + road_flow_loss * args.loss_gamma
