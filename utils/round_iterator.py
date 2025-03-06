@@ -23,3 +23,6 @@ class RoundRobinIterator:
         self.dataloaders.append(self.dataloaders.pop(0))
 
         return dataset_name, batch
+    
+    def __len__(self):
+        return sum(len(dl) for dl in self.iterators.values())

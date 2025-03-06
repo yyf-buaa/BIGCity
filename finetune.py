@@ -41,7 +41,7 @@ total_losses = {
 }
 
 dataloaders = {
-    name: DataLoader(dataset, batch_size=32, shuffle=True)
+    name: DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
     for name, dataset in datasets.items()
 }
 bigcity = BigCity4FineTune()
@@ -65,7 +65,16 @@ def train():
             "traj_recover": []
         }
         
-        for batch_idx, (task_name, (batch_road_id, batch_time_id, batch_time_features, batch_label)) in enumerate(iterator):
+        progress_bar = tqdm(
+            enumerate(iterator), 
+            total=len(iterator), 
+            desc=f"Epoch {epoch}/{args.train_epochs}", 
+            unit="batch"
+        )
+        
+        for batch_idx, (task_name, (batch_road_id, batch_time_id, batch_time_features, batch_label)) in progress_bar:
+            progress_bar.set_description(f"Epoch {epoch}/{args.train_epochs} - Task: {task_name: <18}")
+            
             # Move data to GPU
             batch_road_id = batch_road_id.to(device)
             batch_time_id = batch_time_id.to(device)
@@ -91,17 +100,19 @@ def train():
         
         # Calculate average training loss for this epoch
         average_losses = {f"{task_name}_epoch_average_loss": np.average(task_losses) 
-                        for task_name, task_losses in epoch_losses.items()}
+                          for task_name, task_losses in epoch_losses.items()}
         print(average_losses)
         wandb.log(average_losses)
         
+        # Save checkpoint
         torch.save({
             'epoch': epoch,
             'model_state_dict': bigcity.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss }
-                , os.path.join(args.checkpoints, f'{args.city}_finetune_checkpoint{epoch}.pth'))
+            , os.path.join(args.checkpoints, f'{args.city}_finetune_checkpoint{epoch}.pth'))
         
+        # Step the learning rate scheduler
         lr_scheduler.step(epoch)
 
 def main():

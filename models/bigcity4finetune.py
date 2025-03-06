@@ -55,7 +55,7 @@ class BigCity4FineTune(BigCity):
         batch_tokens = self.tokenizer(batch_road_id, batch_time_id, batch_time_features)
         B, L, D = batch_tokens.shape
         Dtf = 6
-                
+
         if task_name == "next_hop":
             clas_token = self.special_token(torch.tensor([0]).to(device)).expand(B, 1, D)
             batch_psm_tokens = torch.cat([self.NEXT_HOP_PROMPT.expand(B, -1, -1), batch_tokens, clas_token], dim=1) # L = 18 + L + 1

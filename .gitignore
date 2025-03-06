@@ -11,3 +11,5 @@ checkpoints
 *.png
 wandb/
 plots
+
+test*
