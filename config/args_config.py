@@ -1,6 +1,6 @@
 import argparse
 
-parser = argparse.ArgumentParser(description='Trajectory LM')
+parser = argparse.ArgumentParser(description='BigCity Training Config')
 
 # basic config
 parser.add_argument('--task_name', type=str, required=False, default='imputation',
@@ -78,6 +78,7 @@ parser.add_argument('--checkpoint_name', type=str, default=None)
 parser.add_argument('--gpt2_checkpoint_name', type=str, default=None)
 parser.add_argument('--sample_rate', type=float, default=1)
 
-parser.add_argument('--pre_dyna', default=False, action='store_true', help='Pre-trained dyna embeddings are used if set')
+parser.add_argument('--pre_dyna', default=False, action='store_true', help='Pre-trained dynamic embeddings are used if set')
+parser.add_argument('--develop', default=False, action='store_true', help='If set to true, the short dataset is loaded')
 
 args = parser.parse_args()

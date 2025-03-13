@@ -81,7 +81,7 @@ def load_road_features_file():
 
 def load_traj_dataset_file():
     logging.info("Start reading trajectory data file.")
-    traj_data = pd.read_csv(global_vars.traj_file_short, delimiter=';')
+    traj_data = pd.read_csv(global_vars.cur_traj_file, delimiter=';')
     traj_data_full = pd.read_csv(global_vars.traj_file, delimiter=';')
     
     traj_data = traj_data.sample(frac = args.sample_rate)
