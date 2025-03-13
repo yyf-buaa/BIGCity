@@ -94,7 +94,8 @@ class Backbone(nn.Module):
         })
         
         logging.info(f"Downstream tasks mlp: \n"
-                     f"Classification: {self.tasks_mlp["road_clas"]} \n"
+                     f"Road Classification: {self.tasks_mlp["road_clas"]} \n"
                      f"Time prediction: {self.tasks_mlp["time_reg"]} \n"
-                     f"Regression: {self.tasks_mlp["state_reg"]} \n")
+                     f"Regression: {self.tasks_mlp["state_reg"]} \n"
+                     f"Trajectory classification: {self.tasks_mlp["tul_clas"]} \n")
         

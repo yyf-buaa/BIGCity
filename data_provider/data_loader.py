@@ -97,16 +97,29 @@ class DatasetNextHop(Dataset):
         
         super().__init__()
         
-        self.dataset_len = None
-        self.read_traj_data()
+        self.dataset_len = file_loader.traj_data_cnt
+        self.traj_road_id_lists = None
+        self.traj_time_id_lists = None
+        self.traj_time_features_lists = None
+        self.nexthop_labels = None
+        
+        if os.path.exists(global_vars.cached_next_hop_dataset):
+            self.load_cached_traj_data()
+        else:
+            self.read_traj_data()
+            self.cache_traj_data()
+        
+        logging.info(
+                f"Number of trajectories: {self.dataset_len}\n"
+                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
+                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
+                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
+                f"Shape of nexthop_labels: {self.nexthop_labels.shape}, \n")
         
         logging.info("Finish loading next hop dataset.")
     
     def read_traj_data(self):
-
         traj_data = file_loader.traj_data
-        
-        self.dataset_len = file_loader.traj_data_cnt
         
         self.traj_road_id_lists = torch.tensor([ x[:args.seq_len - 1] + x[args.seq_len - 2] if len(x) > args.seq_len else x[:-1] + [x[-2]] * (args.seq_len - len(x) + 1) 
                             for x in traj_data["path"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
@@ -126,12 +139,22 @@ class DatasetNextHop(Dataset):
                             for x in traj_data["path"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
         logging.info("Finish reading next hop label.")
         
-        logging.info(
-                f"Number of trajectories: {self.dataset_len}\n"
-                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
-                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
-                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
-                f"Shape of nexthop_labels: {self.nexthop_labels.shape}, \n")
+    def cache_traj_data(self):
+        logging.info(f"Caching next hop dataset to {global_vars.cached_next_hop_dataset}")
+        torch.save({
+            'traj_road_id_lists': self.traj_road_id_lists,
+            'traj_time_id_lists': self.traj_time_id_lists,
+            'traj_time_features_lists': self.traj_time_features_lists,
+            'nexthop_labels': self.nexthop_labels
+        }, global_vars.cached_next_hop_dataset)
+        
+    def load_cached_traj_data(self):
+        logging.info(f"Loading cached next hop dataset from {global_vars.cached_next_hop_dataset}")
+        cached_data = torch.load(global_vars.cached_next_hop_dataset, weights_only=True)
+        self.traj_road_id_lists = cached_data['traj_road_id_lists']
+        self.traj_time_id_lists = cached_data['traj_time_id_lists']
+        self.traj_time_features_lists = cached_data['traj_time_features_lists']
+        self.nexthop_labels = cached_data['nexthop_labels']
         
     def __getitem__(self, index):
         return (self.traj_road_id_lists[index],
@@ -149,16 +172,30 @@ class DatasetTrajClassify(Dataset):
         
         super().__init__()
         
-        self.dataset_len = None
-        self.read_traj_data()
+        self.dataset_len = file_loader.traj_data_cnt
+        self.traj_road_id_lists = None
+        self.traj_time_id_lists = None
+        self.traj_time_features_lists = None
+        self.classify_labels = None
+        
+        if os.path.exists(global_vars.cached_traj_classify_dataset):
+            self.load_cached_traj_data()
+        else:
+            self.read_traj_data()
+            self.cache_traj_data()
+        
+        logging.info(
+                f"Number of trajectories: {self.dataset_len}\n"
+                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
+                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
+                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
+                f"Shape of classify_labels: {self.classify_labels.shape}, \n")
         
         logging.info("Finish loading trajectory classify dataset.")
     
     def read_traj_data(self):
 
         traj_data = file_loader.traj_data
-        
-        self.dataset_len = file_loader.traj_data_cnt
         
         self.traj_road_id_lists = torch.tensor([ x[:args.seq_len] if len(x) > args.seq_len else x + [x[-1]] * (args.seq_len - len(x)) 
                             for x in traj_data["path"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
@@ -177,12 +214,22 @@ class DatasetTrajClassify(Dataset):
         self.classify_labels = torch.tensor(traj_data["usr_id"], dtype=torch.int64)
         logging.info("Finish reading classify label.")
         
-        logging.info(
-                f"Number of trajectories: {self.dataset_len}\n"
-                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
-                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
-                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
-                f"Shape of classify_labels: {self.classify_labels.shape}, \n")
+    def cache_traj_data(self):
+        logging.info(f"Caching trajectory classify dataset to {global_vars.cached_traj_classify_dataset}")
+        torch.save({
+            'traj_road_id_lists': self.traj_road_id_lists,
+            'traj_time_id_lists': self.traj_time_id_lists,
+            'traj_time_features_lists': self.traj_time_features_lists,
+            'classify_labels': self.classify_labels
+        }, global_vars.cached_traj_classify_dataset)
+        
+    def load_cached_traj_data(self):
+        logging.info(f"Loading cached trajectory classify dataset from {global_vars.cached_traj_classify_dataset}")
+        cached_data = torch.load(global_vars.cached_traj_classify_dataset, weights_only=True)
+        self.traj_road_id_lists = cached_data['traj_road_id_lists']
+        self.traj_time_id_lists = cached_data['traj_time_id_lists']
+        self.traj_time_features_lists = cached_data['traj_time_features_lists']
+        self.classify_labels = cached_data['classify_labels']
         
     def __getitem__(self, index):
         return (self.traj_road_id_lists[index],
@@ -200,16 +247,30 @@ class DatasetTimeReg(Dataset):
         
         super().__init__()
         
-        self.dataset_len = None
-        self.read_traj_data()
+        self.dataset_len = file_loader.traj_data_cnt
+        self.traj_road_id_lists = None
+        self.traj_time_id_lists = None
+        self.traj_time_features_lists = None
+        self.time_regression_labels = None
+        
+        if os.path.exists(global_vars.cached_time_reg_dataset):
+            self.load_cached_traj_data()
+        else:
+            self.read_traj_data()
+            self.cache_traj_data()
+        
+        logging.info(
+                f"Number of trajectories: {self.dataset_len}\n"
+                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
+                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
+                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
+                f"Shape of time_regression_labels: {self.time_regression_labels.shape}, \n")
         
         logging.info("Finish loading time regression dataset.")
     
     def read_traj_data(self):
 
         traj_data = file_loader.traj_data
-        
-        self.dataset_len = file_loader.traj_data_cnt
         
         self.traj_road_id_lists = torch.tensor([ x[:args.seq_len] if len(x) > args.seq_len else x + [x[-1]] * (args.seq_len - len(x)) 
                             for x in traj_data["path"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
@@ -228,12 +289,22 @@ class DatasetTimeReg(Dataset):
         self.time_regression_labels = torch.reshape(data_stamp, (self.dataset_len, args.seq_len, data_stamp.shape[-1]))
         logging.info("Finish reading time regression labels.")
         
-        logging.info(
-                f"Number of trajectories: {self.dataset_len}\n"
-                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
-                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
-                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
-                f"Shape of time_regression_labels: {self.time_regression_labels.shape}, \n")
+    def cache_traj_data(self):
+        logging.info(f"Caching time regression dataset to {global_vars.cached_time_reg_dataset}")
+        torch.save({
+            'traj_road_id_lists': self.traj_road_id_lists,
+            'traj_time_id_lists': self.traj_time_id_lists,
+            'traj_time_features_lists': self.traj_time_features_lists,
+            'time_regression_labels': self.time_regression_labels
+        }, global_vars.cached_time_reg_dataset)
+        
+    def load_cached_traj_data(self):
+        logging.info(f"Loading cached time regression dataset from {global_vars.cached_time_reg_dataset}")
+        cached_data = torch.load(global_vars.cached_time_reg_dataset, weights_only=True)
+        self.traj_road_id_lists = cached_data['traj_road_id_lists']
+        self.traj_time_id_lists = cached_data['traj_time_id_lists']
+        self.traj_time_features_lists = cached_data['traj_time_features_lists']
+        self.time_regression_labels = cached_data['time_regression_labels']
         
     def __getitem__(self, index):
         return (self.traj_road_id_lists[index],
@@ -245,14 +316,31 @@ class DatasetTimeReg(Dataset):
         return self.dataset_len
 
 
+
 class DatasetTrafficStateReg(Dataset):
     def __init__(self):
         logging.info("Start loading traffic state regression dataset.")
         
         super().__init__()
         
-        self.dataset_len = None
-        self.read_traj_data()
+        self.dataset_len = file_loader.traj_data_cnt
+        self.traj_road_id_lists = None
+        self.traj_time_id_lists = None
+        self.traj_time_features_lists = None
+        self.traffic_state_regression_labels = None
+        
+        if os.path.exists(global_vars.cached_traffic_state_reg_dataset):
+             self.load_cached_traj_data()
+        else:
+            self.read_traj_data()
+            self.cache_traj_data()
+           
+        logging.info(
+                f"Number of trajectories: {self.dataset_len}\n"
+                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
+                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
+                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
+                f"Shape of traffic_state_regression_labels: {self.traffic_state_regression_labels.shape}, \n")
         
         logging.info("Finish loading traffic state regression dataset.")
     
@@ -260,7 +348,6 @@ class DatasetTrafficStateReg(Dataset):
 
         traj_data = file_loader.traj_data
         
-        self.dataset_len = file_loader.traj_data_cnt
         road_cnt = file_loader.road_cnt
         time_slots_cnt = file_loader.time_slots_cnt
         
@@ -281,13 +368,23 @@ class DatasetTrafficStateReg(Dataset):
         
         self.traj_time_id_lists.fill_(time_slots_cnt)
         logging.info("Finish reading time id (masked).")
-        
-        logging.info(
-                f"Number of trajectories: {self.dataset_len}\n"
-                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
-                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
-                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
-                f"Shape of traffic_state_regression_labels: {self.traffic_state_regression_labels.shape}, \n")
+     
+    def cache_traj_data(self):
+        logging.info(f"Caching traffic state regression dataset to {global_vars.cached_traffic_state_reg_dataset}")
+        torch.save({
+            'traj_road_id_lists': self.traj_road_id_lists,
+            'traj_time_id_lists': self.traj_time_id_lists,
+            'traj_time_features_lists': self.traj_time_features_lists,
+            'traffic_state_regression_labels': self.traffic_state_regression_labels
+        }, global_vars.cached_traffic_state_reg_dataset)
+    
+    def load_cached_traj_data(self):
+        logging.info(f"Loading cached traffic state regression dataset from {global_vars.cached_traffic_state_reg_dataset}")
+        cached_data = torch.load(global_vars.cached_traffic_state_reg_dataset, weights_only=True)
+        self.traj_road_id_lists = cached_data['traj_road_id_lists']
+        self.traj_time_id_lists = cached_data['traj_time_id_lists']
+        self.traj_time_features_lists = cached_data['traj_time_features_lists']
+        self.traffic_state_regression_labels = cached_data['traffic_state_regression_labels']
         
     def __getitem__(self, index):
         return (self.traj_road_id_lists[index],
@@ -337,8 +434,24 @@ class DatasetTrajRecover(Dataset):
         
         super().__init__()
         
-        self.dataset_len = None
-        self.read_traj_data()
+        self.dataset_len = file_loader.traj_data_cnt
+        self.traj_road_id_lists = None
+        self.traj_time_id_lists = None
+        self.traj_time_features_lists = None
+        self.traj_recover_labels = None
+        
+        if os.path.exists(global_vars.cached_traj_recover_dataset):
+            self.load_cached_traj_data()
+        else:
+            self.read_traj_data()
+            self.cache_traj_data()
+            
+        logging.info(
+            f"Number of trajectories: {self.dataset_len}\n"
+            f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
+            f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
+            f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
+            f"Shape of traj_recover_labels: {self.traj_recover_labels.shape}, \n")
         
         logging.info("Finish loading trajectory recover dataset.")
     
@@ -346,7 +459,6 @@ class DatasetTrajRecover(Dataset):
         
         traj_data = file_loader.traj_data
         
-        self.dataset_len = file_loader.traj_data_cnt
         road_cnt = file_loader.road_cnt
         time_slots_cnt = file_loader.time_slots_cnt
         
@@ -371,14 +483,24 @@ class DatasetTrajRecover(Dataset):
         self.traj_time_features_lists = torch.reshape(data_stamp, (self.dataset_len, args.seq_len, data_stamp.shape[-1]))
         self.traj_time_features_lists[mask == 0, :] = 0
         logging.info("Finish reading time features (masked).")
-        
-        logging.info(
-                f"Number of trajectories: {self.dataset_len}\n"
-                f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
-                f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
-                f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
-                f"Shape of traj_recover_labels: {self.traj_recover_labels.shape}, \n")
-        
+    
+    def cache_traj_data(self):
+        logging.info(f"Caching trajectory recover dataset to {global_vars.cached_traj_recover_dataset}")
+        torch.save({
+            'traj_road_id_lists': self.traj_road_id_lists,
+            'traj_time_id_lists': self.traj_time_id_lists,
+            'traj_time_features_lists': self.traj_time_features_lists,
+            'traj_recover_labels': self.traj_recover_labels
+        }, global_vars.cached_traj_recover_dataset)
+    
+    def load_cached_traj_data(self):
+        logging.info(f"Loading cached trajectory recover dataset from {global_vars.cached_traj_recover_dataset}")
+        cached_data = torch.load(global_vars.cached_traj_recover_dataset, weights_only=True)
+        self.traj_road_id_lists = cached_data['traj_road_id_lists']
+        self.traj_time_id_lists = cached_data['traj_time_id_lists']
+        self.traj_time_features_lists = cached_data['traj_time_features_lists']
+        self.traj_recover_labels = cached_data['traj_recover_labels']
+
     def __getitem__(self, index):
         return (self.traj_road_id_lists[index],
                 self.traj_time_id_lists[index],  
