@@ -55,9 +55,8 @@ parser.add_argument('--use_amp', action='store_true', help='use automatic mixed 
 
 # GPU
 parser.add_argument('--use_gpu', default=False, action='store_true', help='use gpu')
-parser.add_argument('--gpu', type=int, default=0, help='gpu')
 parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
-parser.add_argument('--devices', type=str, default='0,1,2,3', help='device ids of multile gpus')
+parser.add_argument('--device', type=str, default='-1', help='device ids of multile gpus, -1 means cpu')
 
 # de-stationary projector params
 parser.add_argument('--p_hidden_dims', type=int, nargs='+', default=[128, 128],
