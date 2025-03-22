@@ -17,7 +17,10 @@ if not os.path.exists(checkpoints_dir):
 #     os.makedirs(plot_dir)
 
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-log_filename = os.path.join(log_dir, f"{timestamp}.log")
+cur_log_dir = os.path.join(log_dir, timestamp)
+os.makedirs(cur_log_dir)
+
+log_filename = os.path.join(cur_log_dir, f"{timestamp}.log")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

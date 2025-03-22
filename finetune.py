@@ -29,7 +29,7 @@ datasets = {
     "traj_classify": DatasetTrajClassify(),
     "time_reg": DatasetTimeReg(),
     "traffic_state_reg": DatasetTrafficStateReg(),
-    "traj_recover": DatasetTrajRecover()
+    "traj_recover": DatasetTrajRecover(),
 }
 
 total_losses = {
@@ -68,7 +68,6 @@ def train():
         progress_bar = tqdm(
             enumerate(iterator), 
             total=len(iterator), 
-            desc=f"Epoch {epoch}/{args.train_epochs}", 
             unit="batch"
         )
         
@@ -91,7 +90,10 @@ def train():
             total_losses[task_name].append(loss.item())
             
             # Log losses to wandb
-            wandb.log({f"{task_name}_batch_loss": loss.item()})
+            wandb.log({
+                "batch": batch_idx,
+                f"{task_name}_batch_loss": loss.item()
+            })
             
             # Backpropagation
             optimizer.zero_grad()

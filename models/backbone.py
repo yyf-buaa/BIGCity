@@ -70,7 +70,8 @@ class Backbone(nn.Module):
             r=self.LORA_R, 
             lora_alpha=self.LORA_ALPHA, 
             lora_dropout=self.LORA_DROPOUT, 
-            target_modules=["c_attn", "c_proj", "c_fc"]
+            target_modules=["c_attn", "c_proj", "c_fc"],
+            fan_in_fan_out=True
         )
         
         logging.info(f"GPT2 config: \n{self.gpt2_config}")
@@ -89,8 +90,8 @@ class Backbone(nn.Module):
         self.tasks_mlp = nn.ModuleDict({
             "road_clas": MLP(Dm, Dm, N),     # road clas
             "time_reg": MLP(Dm, Dm, Dtf),    # time reg
-            "state_reg": MLP(Dm, Dm, 1),           # traffic state reg
-            "tul_clas": MLP(Dm, Dm, Nclas)   # traj reg
+            "state_reg": MLP(Dm, Dm, 1),     # traffic state reg
+            "tul_clas": MLP(Dm, Dm, Nclas),  # traj reg
         })
         
         logging.info(f"Downstream tasks mlp: \n"

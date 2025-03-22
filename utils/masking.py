@@ -1,5 +1,6 @@
 import torch,logging
-
+from config.global_vars import device
+from config.args_config import args
 
 class TriangularCausalMask():
     def __init__(self, B, L, device="cpu"):
@@ -24,3 +25,11 @@ class ProbMask():
     @property
     def mask(self):
         return self._mask
+    
+def padding_mask(B, L):
+    mask = torch.ones(B, L)
+    num_mask = int(args.mask_rate * L)
+    for i in range(B):
+        indices_to_mask = torch.randperm(L, dtype=torch.long)[:num_mask]
+        mask[i][indices_to_mask] = 0
+    return mask.to(device), num_mask
