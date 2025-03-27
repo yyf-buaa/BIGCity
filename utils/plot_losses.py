@@ -42,3 +42,17 @@ def save_losses_to_csv(losses: Dict[str, List[float]]):
             for loss_name in losses:
                 row.append(losses[loss_name][i] if i < len(losses[loss_name]) else "")
             writer.writerow(row)
+
+
+def plot_tensor_distribution(tensor):
+    values = tensor.flatten().numpy()
+
+    plt.hist(values, bins=50, alpha=0.75, color='blue', edgecolor='black')
+
+    plt.title("Tensor Value Distribution")
+    plt.xlabel("Value")
+    plt.ylabel("Frequency")
+
+    plot_filename = os.path.join(cur_log_dir, "dynamic_tensor_distribution.png")
+    plt.savefig(plot_filename)
+    plt.close()

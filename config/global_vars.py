@@ -8,12 +8,13 @@ device = torch.device("cuda:0" if args.use_gpu and torch.cuda.is_available() els
 city_root_path = os.path.join(args.root_path, args.city)
 
 road_relation_file = os.path.join(city_root_path, f"roadmap_{args.city}", f"roadmap_{args.city}.rel")
+road_relation_tensor_file = os.path.join(city_root_path, f'cached_{args.city}_relation.pth')
 
 road_static_file = os.path.join(city_root_path, f"roadmap_{args.city}", f"road_features_{args.city}.csv")
-road_static_tensor_file = os.path.join(city_root_path, f"roadmap_{args.city}", f"road_features_{args.city}.pth")
+road_static_tensor_file = os.path.join(city_root_path, f'cached_{args.city}_static.pth')
 
 road_dynamic_file = os.path.join(city_root_path, f'{args.city}.dyna')
-road_dynamic_tensor_file = os.path.join(city_root_path, f'{args.city}.pth')
+road_dynamic_tensor_file = os.path.join(city_root_path, f'cached_{args.city}_dynamic.pth')
 
 traj_file = os.path.join(city_root_path, f'traj_{args.city}_11.csv')
 traj_file_short = os.path.join(city_root_path, f'traj_{args.city}_11_short.csv')
