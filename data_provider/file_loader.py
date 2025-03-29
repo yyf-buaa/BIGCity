@@ -1,13 +1,12 @@
 import pandas as pd
-import torch
-import numpy as np
-from tqdm import tqdm
 import logging
 import os
+import json
+import torch
+import torch.distributed as dist
 
-from config import global_vars
-from config import logging_config
 from config.args_config import args
+from config import global_vars
 
 
 class FileLoader:
@@ -64,11 +63,11 @@ class FileLoader:
             
             torch.save({"static_features": self.static_features, "road_cnt": self.road_cnt}, static_cache)
             logging.info(f"Saved static features tensor cache to {static_cache}")
-        logging.info(f"Static features loaded. Shape: {self.static_features.shape}")
+        logging.info(f"Static features loaded. Shape: {self.static_features.shape}, Road count: {self.road_cnt}")
 
         dynamic_cache = global_vars.road_dynamic_tensor_file
         if os.path.exists(dynamic_cache):
-            logging.info(f"Loading cached dynamic features from cache {dynamic_cache}")
+            logging.info(f"Loading cached dynamic features from {dynamic_cache}")
             cache = torch.load(dynamic_cache, weights_only=True)
             self.dynamic_features, self.time_slots_cnt = cache["dynamic_features"], cache["time_slots_cnt"]
         else:
@@ -108,31 +107,71 @@ class FileLoader:
             
             torch.save({"dynamic_features": self.dynamic_features, "time_slots_cnt": self.time_slots_cnt}, dynamic_cache)
             logging.info(f"Saved dynamic features tensor cache to {dynamic_cache}")
-        logging.info(f"Dynamic features loaded. Shape: {self.dynamic_features.shape}")
+        logging.info(f"Dynamic features loaded. Shape: {self.dynamic_features.shape}, Time slots count: {self.time_slots_cnt}")
 
     def load_traj_dataset_file(self):
         logging.info("Start reading trajectory data file.")
         traj_data = pd.read_csv(global_vars.cur_traj_file, delimiter=';')
-        traj_data_full = pd.read_csv(global_vars.traj_file, delimiter=';')
-
         traj_data = traj_data.sample(frac=args.sample_rate)
         traj_data.reset_index(drop=True, inplace=True)
 
         self.traj_data = traj_data
         self.traj_cnt = len(traj_data)
-        self.traj_category_cnt = len(set(traj_data_full["usr_id"]))
+        
+        if os.path.exists(global_vars.dataset_meta_file):
+            with open(global_vars.dataset_meta_file, 'r') as f:
+                meta = json.load(f)
+                self.traj_category_cnt = meta["traj_category_cnt"]
+        else:
+            traj_data_full = pd.read_csv(global_vars.traj_file, delimiter=';')
+            self.traj_category_cnt = len(set(traj_data_full["usr_id"]))
 
         logging.info(f"Trajectory data loaded. Count: {self.traj_cnt}, Categories: {self.traj_category_cnt}")
 
-    def load_all(self):
+    def load_all(self, rank=0):
         if self.edges is None or self.edge_weight is None:
             self.load_road_relation_file()
         if self.static_features is None or self.dynamic_features is None:
             self.load_road_features_file()
         if self.traj_data is None:
             self.load_traj_dataset_file()
+        
+        if rank == 0:
+            self.save_meta_info(global_vars.dataset_meta_file)
 
-    # Getter methods with checks:
+    def load_all_ddp(self, rank, device_ids):
+        if rank == 0:
+            logging.info("Rank 0 is loading data...")
+            self.load_all(rank)
+        else:
+            logging.info(f"Rank {rank} is waiting for rank 0")
+            
+        dist.barrier(device_ids=[device_ids[rank]])
+        
+        if rank != 0:
+            logging.info(f"Rank {rank} is loading cache data...")
+            self.load_all(rank)
+            
+        dist.barrier(device_ids=[device_ids[rank]])
+
+    def broadcast_tensor(self, tensor, rank):
+        if rank == 0:
+            shape = torch.tensor(tensor.shape, dtype=torch.int64)
+            dist.broadcast(shape, src=0)
+        else:
+            shape = torch.zeros_like(torch.tensor([0] * len(tensor.shape), dtype=torch.int64))
+            dist.broadcast(shape, src=0)
+            tensor = torch.zeros(*shape.tolist(), dtype=tensor.dtype)
+
+        dist.broadcast(tensor, src=0)
+        return tensor
+
+    def broadcast_object(self, obj, rank):
+        object_list = [obj] if rank == 0 else [None]
+        dist.broadcast_object_list(object_list, src=0)
+        return object_list[0]
+            
+    
     def get_edges(self):
         if self.edges is None:
             raise RuntimeError("edges not loaded. Please call load_all() first.")
@@ -158,6 +197,9 @@ class FileLoader:
             raise RuntimeError("traj_data not loaded.")
         return self.traj_data
     
+    def get_edge_cnt(self):
+        return self.edge_cnt
+    
     def get_road_cnt(self):
         return self.road_cnt
     
@@ -172,10 +214,28 @@ class FileLoader:
 
     def get_meta_info(self):
         return {
+            "edge_cnt": self.edge_cnt,
             "road_cnt": self.road_cnt,
             "time_slots_cnt": self.time_slots_cnt,
             "traj_cnt": self.traj_cnt,
-            "traj_category_cnt": self.traj_category_cnt
+            "traj_category_cnt": self.traj_category_cnt,
         }
+        
+    def save_meta_info(self, meta_file_path):
+        current_meta_info = self.get_meta_info()
+
+        if os.path.exists(meta_file_path):
+            with open(meta_file_path, 'r') as f:
+                existing_meta_info = json.load(f)
+            
+            if existing_meta_info == current_meta_info:
+                logging.info(f"Meta info is up-to-date. No changes made to {meta_file_path}")
+                return 
+            else:
+                logging.info(f"Meta info has changed. Updating {meta_file_path}")
+                
+        with open(meta_file_path, 'w') as f:
+            json.dump(current_meta_info, f, indent=4)
+        logging.info(f"Meta info saved to {meta_file_path}")
 
 file_loader = FileLoader()

@@ -4,10 +4,7 @@ import os
 import random
 import csv
 
-from config.logging_config import cur_log_dir
-
-
-def save_loss_image(losses: Dict[str, List[float]]):
+def save_loss_image(losses: Dict[str, List[float]], cur_log_dir: str):
     loss_colors = ["blue", "red", "green", "purple"]
     loss_styles = ["-", "--", ":", "-."]
     
@@ -29,7 +26,7 @@ def save_loss_image(losses: Dict[str, List[float]]):
         plt.savefig(plot_filename)
         plt.close()
 
-def save_losses_to_csv(losses: Dict[str, List[float]]):
+def save_losses_to_csv(losses: Dict[str, List[float]], cur_log_dir: str):
     max_length = max(len(values) for values in losses.values())
     output_file = os.path.join(cur_log_dir, "losses.csv")
     
@@ -44,7 +41,7 @@ def save_losses_to_csv(losses: Dict[str, List[float]]):
             writer.writerow(row)
 
 
-def plot_tensor_distribution(tensor):
+def plot_tensor_distribution(tensor, cur_log_dir: str):
     values = tensor.flatten().numpy()
 
     plt.hist(values, bins=50, alpha=0.75, color='blue', edgecolor='black')

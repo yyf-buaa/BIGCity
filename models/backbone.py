@@ -9,18 +9,19 @@ from peft import (
 )
 
 from config.args_config import args
-from config.global_vars import device
-from data_provider import file_loader
+from data_provider.file_loader import file_loader
 from .layers import MLP
 
 
 class Backbone(nn.Module):
-    def __init__(self):
+    def __init__(self, device):
         logging.info("Start initializing the BIGCity backbone")
         super(Backbone, self).__init__()
         
-        self.road_cnt = file_loader.road_cnt
-        self.traj_category_cnt = file_loader.traj_category_cnt
+        self.device = device
+        
+        self.road_cnt = file_loader.get_road_cnt()
+        self.traj_category_cnt = file_loader.get_traj_category_cnt()
         self.d_time_feature = 6
         
         self.LORA_R = 8

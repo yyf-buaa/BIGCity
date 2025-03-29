@@ -1,23 +1,26 @@
 import os
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from transformers import get_cosine_schedule_with_warmup
 import logging
 import traceback
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 import wandb
 
-import config.logging_config
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+import torch.distributed as dist
+import torch.multiprocessing as mp
+
+from transformers import get_cosine_schedule_with_warmup
+
+from config.logging_config import init_logger, make_log_dir
 import config.random_seed
 from config.args_config import args
-from config.global_vars import device
+# from config.global_vars import device
 
+from data_provider.file_loader import file_loader
 from data_provider.data_loader import DatasetTraj
-from data_provider import file_loader
 
 from models.bigcity import BigCity
 
@@ -33,34 +36,59 @@ losses = {
     "road_flow": []
 }
 
+def setup_ddp(rank, world_size, device_ids):
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '29500'
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    torch.cuda.set_device(device_ids[rank])
 
-def train():
-    dataset = DatasetTraj()
-    data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+def cleanup_ddp():
+    dist.destroy_process_group()
+
+def train(rank, world_size, device_ids, log_dir):
+
+    setup_ddp(rank, world_size, device_ids)
     
-    bigcity = BigCity()
-    mse = nn.MSELoss()
-    cross_entropy = nn.CrossEntropyLoss()
+    init_logger(log_dir)
+    
+    if rank == 0:
+        project_name = "bigcity-dev" if args.develop else "bigcity"
+        wandb.init(mode="offline", project=project_name, config=args, name="pretrain")
+
+    
+    device = torch.device(f"cuda:{device_ids[rank]}")
+    
+    file_loader.load_all(rank)
+
+    dataset = DatasetTraj()
+    sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True)
+    data_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers, sampler=sampler)
+    
+    bigcity = BigCity(device).to(device)
+    bigcity = nn.parallel.DistributedDataParallel(bigcity, device_ids=[device_ids[rank]], find_unused_parameters=True)
+    
+    mse = nn.MSELoss().to(device_ids[rank])
+    cross_entropy = nn.CrossEntropyLoss().to(device_ids[rank])
     
     optimizer = torch.optim.Adam(bigcity.parameters(), lr=args.learning_rate, weight_decay=args.weight)
 
     scheduler = get_cosine_schedule_with_warmup(
-        optimizer, 
+        optimizer,
         num_warmup_steps=int(args.train_epochs * 0.1), 
         num_training_steps=args.train_epochs
     )
     
     early_stopping = EarlyStopping(patience=args.patience, verbose=True)
     
+    
     data_loader_len = len(data_loader)
-    
-    
     for epoch in range(1, args.train_epochs + 1):
         
         progress_bar = tqdm(enumerate(data_loader), 
                             total=len(data_loader), 
-                            desc=f"Epoch {epoch}/{args.train_epochs}", 
-                            unit="batch"
+                            desc=f"Rank {rank} - Epoch {epoch}/{args.train_epochs}", 
+                            unit="batch",
+                            # disable=(rank != 0),
         )
         
         for batchidx, batch in progress_bar:
@@ -71,8 +99,9 @@ def train():
             batch_time_id = batch_time_id.to(device)
             batch_time_features = batch_time_features.to(device)
             batch_road_flow = batch_road_flow.to(device)
+            
 
-            B, L, N, Dtf = batch_road_id.shape[0], batch_road_id.shape[1], file_loader.road_cnt, 6
+            B, L, N, Dtf = batch_road_id.shape[0], batch_road_id.shape[1], file_loader.get_road_cnt(), 6
             
             # Get mask
             mask, num_mask = padding_mask(B, L)
@@ -100,22 +129,28 @@ def train():
             losses["road_id"].append(road_id_loss.item())
             losses["time_features"].append(time_features_loss.item())
             losses["road_flow"].append(road_flow_loss.item())
-            
-            progress_bar.set_postfix({"loss": f"{loss.item():.2f}"}) 
-            
-            # Log losses to wandb
-            wandb.log({
-                "batch": batchidx,
-                "batch_total_loss": loss.item(),
-                "batch_road_id_loss": road_id_loss.item(),
-                "batch_time_features_loss": time_features_loss.item(),
-                "batch_road_flow_loss": road_flow_loss.item(),
-            })
-            
+                        
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            
+            progress_bar.set_postfix({"loss": f"{loss.item():.2f}"}) 
+            
+            # Log losses to wandb
+            if rank == 0:
+                wandb.log({
+                    "batch": batchidx,
+                    "batch_total_loss": loss.item(),
+                    "batch_road_id_loss": road_id_loss.item(),
+                    "batch_time_features_loss": time_features_loss.item(),
+                    "batch_road_flow_loss": road_flow_loss.item(),
+                })
+                
+                # for name, param in bigcity.named_parameters():
+                #     if param.grad is None:
+                #         print(f"Parameter {name} has no gradient!")
+                        
 
         # Calculate average training loss for this epoch
         epoch_loss_ave = np.mean(losses["total"][-data_loader_len:])
@@ -123,43 +158,54 @@ def train():
         epoch_time_features_loss_ave = np.mean(losses["time_features"][-data_loader_len:])
         epoch_road_flow_loss_ave = np.mean(losses["road_flow"][-data_loader_len:])
         
-        # Log average losses to wandb
-        wandb.log({
-            "epoch_average_total_loss": epoch_loss_ave,
-            "epoch_average_road_id_loss": epoch_road_id_loss_ave,
-            "epoch_average_time_features_loss": epoch_time_features_loss_ave,
-            "epoch_average_road_flow_loss": epoch_road_flow_loss_ave,
-            "learning_rate": optimizer.param_groups[0]['lr']
-        })
-        
-        # Save checkpoint & loss plot
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': bigcity.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss }, os.path.join(args.checkpoints, f'{args.city}_pretrain_checkpoint{epoch}.pth'))
+        if rank == 0:
+            # Log average losses to wandb
+            wandb.log({
+                "epoch_average_total_loss": epoch_loss_ave,
+                "epoch_average_road_id_loss": epoch_road_id_loss_ave,
+                "epoch_average_time_features_loss": epoch_time_features_loss_ave,
+                "epoch_average_road_flow_loss": epoch_road_flow_loss_ave,
+                "learning_rate": optimizer.param_groups[0]['lr']
+            })
+            
+            # Save checkpoint & loss plot
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': bigcity.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss }, os.path.join(args.checkpoint_path, f'{args.city}_pretrain_checkpoint{epoch}.pth'))
 
         # Early stopping and lr scheduler step
-        early_stopping(epoch_loss_ave, bigcity, args.checkpoints)
+        early_stopping(epoch_loss_ave, bigcity, args.checkpoint_path)
         scheduler.step()
+    
+    if rank == 0:
+        wandb.finish()
+    
+    cleanup_ddp()
 
 def main():
-    project_name = "bigcity-dev" if args.develop else "bigcity"
+    log_dir = make_log_dir(args.log_path, args.checkpoint_path)
     
-    wandb.init(mode="offline", project=project_name, config=args, name="pretrain")
-
     try:
-        train()
+        device_ids = [int(x) for x in args.device.split(',')]
+        world_size = len(device_ids)
+        if args.device == '-1':
+            logging.error("CPU training is not supported.")
+            return
+        else:
+            logging.info(f"Using devices: {device_ids}")
+            mp.spawn(train, args=(world_size, device_ids, log_dir), nprocs=world_size, join=True)
+    
     except KeyboardInterrupt:
         logging.info("\nTraining interrupted by user.")
+    
     finally:
-        logging.info(f"Saving losses to {config.logging_config.cur_log_dir}.")
-        save_loss_image(losses)
-        save_losses_to_csv(losses)
+        logging.info(f"Saving losses to {log_dir}.")
+        save_loss_image(losses, log_dir)
+        save_losses_to_csv(losses, log_dir)
         
         logging.info(f"Finishing training.")
-        
-    wandb.finish()
 
 
 if __name__ == "__main__":

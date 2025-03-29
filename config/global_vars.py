@@ -1,11 +1,13 @@
 import os
 import torch
+import torch.distributed as dist
 import pandas as pd
 from config.args_config import args
 
 device = torch.device("cuda:0" if args.use_gpu and torch.cuda.is_available() else "cpu")
+device_id = dist.get_rank() if dist.is_initialized() else -1
 
-city_root_path = os.path.join(args.root_path, args.city)
+city_root_path = os.path.join(args.dataset_path, args.city)
 
 road_relation_file = os.path.join(city_root_path, f"roadmap_{args.city}", f"roadmap_{args.city}.rel")
 road_relation_tensor_file = os.path.join(city_root_path, f'cached_{args.city}_relation.pth')
@@ -15,6 +17,8 @@ road_static_tensor_file = os.path.join(city_root_path, f'cached_{args.city}_stat
 
 road_dynamic_file = os.path.join(city_root_path, f'{args.city}.dyna')
 road_dynamic_tensor_file = os.path.join(city_root_path, f'cached_{args.city}_dynamic.pth')
+
+dataset_meta_file = os.path.join(city_root_path, f'cached_meta_{args.city}.json')
 
 traj_file = os.path.join(city_root_path, f'traj_{args.city}_11.csv')
 traj_file_short = os.path.join(city_root_path, f'traj_{args.city}_11_short.csv')

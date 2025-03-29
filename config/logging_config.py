@@ -1,42 +1,51 @@
 import logging
 import os
-from .args_config import args
 from datetime import datetime
+import torch.distributed as dist
 
-log_dir = "./log"
-checkpoints_dir = args.checkpoints
 
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
+def make_log_dir(log_dir="./log", checkpoints_dir="./checkpoints"):
     
-if not os.path.exists(checkpoints_dir):
-    os.makedirs(checkpoints_dir)
+    if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+            
+    if not os.path.exists(checkpoints_dir):
+        os.makedirs(checkpoints_dir)
     
-# if not os.path.exists(plot_dir):
-#     os.makedirs(plot_dir)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    cur_log_dir = os.path.join(log_dir, timestamp)
+    
+    return cur_log_dir
 
-timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-cur_log_dir = os.path.join(log_dir, timestamp)
-os.makedirs(cur_log_dir, exist_ok=True)
+def init_logger(cur_log_dir: str):
 
-log_filename = os.path.join(cur_log_dir, f"{timestamp}.log")
+    rank = 0
+    if dist.is_initialized():
+        rank = dist.get_rank()
+    
+    if rank == 0:
+        os.makedirs(cur_log_dir, exist_ok=True)
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+        log_filename = os.path.join(cur_log_dir, f"{os.path.basename(cur_log_dir)}.log")
 
-file_handler = logging.FileHandler(log_filename)
-file_handler.setLevel(logging.INFO)
-file_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-file_handler.setFormatter(file_formatter)
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
 
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-console_handler.setFormatter(console_formatter)
+        file_handler = logging.FileHandler(log_filename)
+        file_handler.setLevel(logging.INFO)
+        file_formatter = logging.Formatter(
+            f"%(asctime)s - rank{rank} - %(levelname)s - %(message)s"
+        )
+        file_handler.setFormatter(file_formatter)
 
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_formatter = logging.Formatter(
+            f"%(asctime)s - rank{rank} - %(levelname)s - %(message)s"
+        )
+        console_handler.setFormatter(console_formatter)
+
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+    else:
+        logging.getLogger().setLevel(logging.WARNING)

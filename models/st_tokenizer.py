@@ -6,15 +6,16 @@ import numpy as np
 from tqdm import tqdm
 
 from config import global_vars
-from config.global_vars import device
 from config.args_config import args
 from .layers import MLP, GAT, CrossAttention
-from data_provider import file_loader
+from data_provider.file_loader import file_loader
 
 class StTokenizer(nn.Module):
-    def __init__(self):
+    def __init__(self, device):
         logging.info("Start initializing the ST tokenizer.")
         super(StTokenizer, self).__init__()
+        
+        self.device = device
         
         self.slide_window_size = 6
         self.d_vec = 128
@@ -70,7 +71,7 @@ class StTokenizer(nn.Module):
             de = self.dynamic_embedding_layers[0](de)
 
             # dynamic layer 1: GAT(batch)
-            edges = self.edges.repeat(1, B) + (torch.arange(B) * N).repeat_interleave(M).to(device)
+            edges = self.edges.repeat(1, B) + (torch.arange(B) * N).repeat_interleave(M).to(self.device)
             edge_weight = self.edge_weight.repeat(B)
             de = de.permute(1, 0, 2).reshape(-1, de.shape[-1])
             de = self.dynamic_embedding_layers[1](de, edges, edge_weight)
@@ -103,31 +104,31 @@ class StTokenizer(nn.Module):
         return embedding_result # (B, L, d_model)
     
     def load_relation(self):
-        self.edge_cnt = file_loader.edge_cnt
-        self.edges = file_loader.edges.to(device)
-        self.edge_weight = file_loader.edge_weight.to(device)
+        self.edge_cnt = file_loader.get_edge_cnt()
+        self.edges = file_loader.get_edges().to(self.device)
+        self.edge_weight = file_loader.get_edge_weight().to(self.device)
         
     def load_static_features(self):
-        self.road_cnt = file_loader.road_cnt
-        static_features = file_loader.static_features.to(device)
+        self.road_cnt = file_loader.get_road_cnt()
+        static_features = file_loader.get_static_features().to(self.device)
         
         # fill in 1 empty road segment id
-        row_zeros = torch.zeros(1, static_features.shape[1], dtype=static_features.dtype, device=static_features.device)
+        row_zeros = torch.zeros(1, static_features.shape[1], dtype=static_features.dtype).to(self.device)
         self.static_features = torch.cat((static_features, row_zeros), dim=0)
         
     def load_dynamic_features(self):
-        self.time_slots_cnt = file_loader.time_slots_cnt
-        dynamic_features = file_loader.dynamic_features.to(device)
+        self.time_slots_cnt = file_loader.get_time_slots_cnt()
+        dynamic_features = file_loader.get_dynamic_features().to(self.device)
             
         N, T, S = self.road_cnt, self.time_slots_cnt, self.slide_window_size
 
-        padded_dynamic_features = torch.cat((torch.zeros(N, S).to(device), dynamic_features), dim=1)
+        padded_dynamic_features = torch.cat((torch.zeros(N, S).to(self.device), dynamic_features), dim=1)
         dynamic_features= torch.stack([padded_dynamic_features[:, j - S:j] for j in range(S, T + S)], dim=1)
         
         # fill in 1 empty road segment id and 1 empty time slot id
-        row_zeros = torch.zeros(1, dynamic_features.shape[1], S, dtype=dynamic_features.dtype, device=dynamic_features.device)
+        row_zeros = torch.zeros(1, dynamic_features.shape[1], S, dtype=dynamic_features.dtype).to(self.device)
         dynamic_features = torch.cat((dynamic_features, row_zeros), dim=0)
-        col_zeros = torch.zeros(dynamic_features.shape[0], 1, S, dtype=dynamic_features.dtype, device=dynamic_features.device)
+        col_zeros = torch.zeros(dynamic_features.shape[0], 1, S, dtype=dynamic_features.dtype).to(self.device)
         self.dynamic_features = torch.cat((dynamic_features, col_zeros), dim=1)
         
     def build_tokenizer(self):
@@ -140,9 +141,9 @@ class StTokenizer(nn.Module):
             nn.Embedding(num_embeddings=size+1, embedding_dim=Demb) for size in max_size
         ])
         self.static_embedding_layers = nn.Sequential(
-            MLP(input_size=self.static_features.shape[1]*Demb, hidden_size=Demb, output_size=Demb),
+            MLP(self.static_features.shape[1]*Demb, Demb, Demb),
             GAT(in_channels=Demb, out_channels=Demb, heads=2),
-            MLP(input_size=Demb, hidden_size=Demb, output_size=Demb)
+            MLP(Demb, Demb, Demb)
         )
 
         logging.info("Finish building static ST tokenizer. \n"
@@ -155,12 +156,12 @@ class StTokenizer(nn.Module):
         S = self.slide_window_size   
         
         self.dynamic_embedding_layers = nn.Sequential(
-            MLP(input_size=S, hidden_size=Demb, output_size=Demb),
+            MLP(S, Demb, Demb),
             GAT(in_channels=Demb, out_channels=Demb, heads=2),
-            MLP(input_size=Demb, hidden_size=Demb, output_size=Demb),
+            MLP(Demb, Demb, Demb),
         )
         if args.pre_dyna:
-            self.dynamic_embedding = torch.from_numpy(np.load(global_vars.road_dynamic_embedding_file)).to(device)
+            self.dynamic_embedding = torch.from_numpy(np.load(global_vars.road_dynamic_embedding_file))
             self.dynamic_embedding.requires_grad = False
             logging.info(f"Pre-trained dyna embeddings are used. Shape: {self.dynamic_embedding.shape}")
         
