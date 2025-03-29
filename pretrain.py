@@ -1,30 +1,27 @@
 import os
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from transformers import get_cosine_schedule_with_warmup
 import logging
 import traceback
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 import wandb
 
-import config.logging_config
-import config.random_seed
-from config.args_config import args
-from config.global_vars import device
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from transformers import get_cosine_schedule_with_warmup
 
+from config.logging_config import init_logger, make_log_dir
+from config.args_config import args
+
+from data_provider.file_loader import file_loader
 from data_provider.data_loader import DatasetTraj
-from data_provider import file_loader
 
 from models.bigcity import BigCity
 
 from utils.tools import EarlyStopping
-from utils.scheduler import CosineLRScheduler
 from utils.masking import padding_mask
 from utils.plot_losses import save_loss_image, save_losses_to_csv
+
 
 losses = {
     "total": [],
@@ -34,11 +31,12 @@ losses = {
 }
 
 
-def train():
+def train(device):
+    file_loader.load_all(0)
     dataset = DatasetTraj()
     data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     
-    bigcity = BigCity()
+    bigcity = BigCity(device).to(device)
     mse = nn.MSELoss()
     cross_entropy = nn.CrossEntropyLoss()
     
@@ -76,6 +74,7 @@ def train():
             
             # Get mask
             mask, num_mask = padding_mask(B, L)
+            mask = mask.to(device)
             
             # Forward pass
             predict_road_id, predict_time_features, predict_road_flow = bigcity(
@@ -137,25 +136,30 @@ def train():
             'epoch': epoch,
             'model_state_dict': bigcity.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss }, os.path.join(args.checkpoints, f'{args.city}_pretrain_checkpoint{epoch}.pth'))
+            'loss': loss }, os.path.join(args.checkpoint_path, f'{args.city}_pretrain_checkpoint{epoch}.pth'))
 
         # Early stopping and lr scheduler step
-        early_stopping(epoch_loss_ave, bigcity, args.checkpoints)
+        early_stopping(epoch_loss_ave, bigcity, args.checkpoint_path)
         scheduler.step()
 
 def main():
     project_name = "bigcity-dev" if args.develop else "bigcity"
+    wandb.init(mode="offline", project=project_name, config=args, name="pretrain")
     
-    wandb.init(mode="online", project=project_name, config=args, name="pretrain")
+    log_dir = make_log_dir(args.log_path)
+    init_logger(log_dir)
+    
+    device = torch.device("cpu" if args.device == "-1" and torch.cuda.is_available() else f"cuda:{args.device}")
+    logging.info(f"Using device: {device}")
 
     try:
-        train()
+        train(device)
     except KeyboardInterrupt:
         logging.info("\nTraining interrupted by user.")
     finally:
-        logging.info(f"Saving losses to {config.logging_config.cur_log_dir}.")
-        save_loss_image(losses)
-        save_losses_to_csv(losses)
+        logging.info(f"Saving losses to {log_dir}.")
+        save_loss_image(losses, log_dir)
+        save_losses_to_csv(losses, log_dir)
         
         logging.info(f"Finishing training.")
         

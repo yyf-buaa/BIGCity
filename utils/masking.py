@@ -1,5 +1,4 @@
-import torch,logging
-from config.global_vars import device
+import torch
 from config.args_config import args
 
 class TriangularCausalMask():
@@ -32,4 +31,4 @@ def padding_mask(B, L):
     for i in range(B):
         indices_to_mask = torch.randperm(L, dtype=torch.long)[:num_mask]
         mask[i][indices_to_mask] = 0
-    return mask.to(device), num_mask
+    return mask, num_mask

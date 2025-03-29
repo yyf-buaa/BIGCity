@@ -15,9 +15,7 @@ import torch.multiprocessing as mp
 from transformers import get_cosine_schedule_with_warmup
 
 from config.logging_config import init_logger, make_log_dir
-import config.random_seed
 from config.args_config import args
-# from config.global_vars import device
 
 from data_provider.file_loader import file_loader
 from data_provider.data_loader import DatasetTraj
@@ -25,7 +23,6 @@ from data_provider.data_loader import DatasetTraj
 from models.bigcity import BigCity
 
 from utils.tools import EarlyStopping
-from utils.scheduler import CosineLRScheduler
 from utils.masking import padding_mask
 from utils.plot_losses import save_loss_image, save_losses_to_csv
 
@@ -49,12 +46,11 @@ def train(rank, world_size, device_ids, log_dir):
 
     setup_ddp(rank, world_size, device_ids)
     
-    init_logger(log_dir)
-    
     if rank == 0:
         project_name = "bigcity-dev" if args.develop else "bigcity"
         wandb.init(mode="offline", project=project_name, config=args, name="pretrain")
-
+    
+    init_logger(log_dir)
     
     device = torch.device(f"cuda:{device_ids[rank]}")
     
@@ -67,8 +63,8 @@ def train(rank, world_size, device_ids, log_dir):
     bigcity = BigCity(device).to(device)
     bigcity = nn.parallel.DistributedDataParallel(bigcity, device_ids=[device_ids[rank]], find_unused_parameters=True)
     
-    mse = nn.MSELoss().to(device_ids[rank])
-    cross_entropy = nn.CrossEntropyLoss().to(device_ids[rank])
+    mse = nn.MSELoss()
+    cross_entropy = nn.CrossEntropyLoss()
     
     optimizer = torch.optim.Adam(bigcity.parameters(), lr=args.learning_rate, weight_decay=args.weight)
 
@@ -88,7 +84,7 @@ def train(rank, world_size, device_ids, log_dir):
                             total=len(data_loader), 
                             desc=f"Rank {rank} - Epoch {epoch}/{args.train_epochs}", 
                             unit="batch",
-                            # disable=(rank != 0),
+                            disable=(rank != 0),
         )
         
         for batchidx, batch in progress_bar:
@@ -105,6 +101,7 @@ def train(rank, world_size, device_ids, log_dir):
             
             # Get mask
             mask, num_mask = padding_mask(B, L)
+            mask = mask.to(device)
             
             # Forward pass
             predict_road_id, predict_time_features, predict_road_flow = bigcity(
@@ -145,12 +142,7 @@ def train(rank, world_size, device_ids, log_dir):
                     "batch_road_id_loss": road_id_loss.item(),
                     "batch_time_features_loss": time_features_loss.item(),
                     "batch_road_flow_loss": road_flow_loss.item(),
-                })
-                
-                # for name, param in bigcity.named_parameters():
-                #     if param.grad is None:
-                #         print(f"Parameter {name} has no gradient!")
-                        
+                })                        
 
         # Calculate average training loss for this epoch
         epoch_loss_ave = np.mean(losses["total"][-data_loader_len:])
@@ -169,29 +161,38 @@ def train(rank, world_size, device_ids, log_dir):
             })
             
             # Save checkpoint & loss plot
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': bigcity.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss }, os.path.join(args.checkpoint_path, f'{args.city}_pretrain_checkpoint{epoch}.pth'))
+            if epoch % 5 == 0:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': bigcity.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': loss }, os.path.join(args.checkpoint_path, f'{args.city}_pretrain_checkpoint{epoch}.pth'))
 
         # Early stopping and lr scheduler step
         early_stopping(epoch_loss_ave, bigcity, args.checkpoint_path)
         scheduler.step()
     
     if rank == 0:
+        logging.info(f"Saving losses to {log_dir}.")
+        save_loss_image(losses, log_dir)
+        save_losses_to_csv(losses, log_dir)
+        
         wandb.finish()
     
     cleanup_ddp()
 
 def main():
     log_dir = make_log_dir(args.log_path, args.checkpoint_path)
+    init_logger(log_dir)
     
     try:
         device_ids = [int(x) for x in args.device.split(',')]
         world_size = len(device_ids)
         if args.device == '-1':
             logging.error("CPU training is not supported.")
+            return
+        elif world_size == 1:
+            logging.info(f"Single GPU training is not supported, use pretrain.py instead.")
             return
         else:
             logging.info(f"Using devices: {device_ids}")
@@ -201,10 +202,6 @@ def main():
         logging.info("\nTraining interrupted by user.")
     
     finally:
-        logging.info(f"Saving losses to {log_dir}.")
-        save_loss_image(losses, log_dir)
-        save_losses_to_csv(losses, log_dir)
-        
         logging.info(f"Finishing training.")
 
 
