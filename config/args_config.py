@@ -45,7 +45,7 @@ def get_args_parser():
     parser.add_argument('--output_attention', action='store_true', help='whether to output attention in ecoder')
 
     # optimization
-    parser.add_argument('--num_workers', type=int, default=12, help='data loader num workers') # use
+    parser.add_argument('--num_workers', type=int, default=8, help='data loader num workers') # use
     parser.add_argument('--itr', type=int, default=1, help='experiments times')
     parser.add_argument('--train_epochs', type=int, default=10, help='train epochs') # use
     parser.add_argument('--batch_size', type=int, default=64, help='batch size of train input data') # use
@@ -73,15 +73,16 @@ def get_args_parser():
     parser.add_argument('--percent', type=int, default=5)
 
     # pre-train multi loss alpha
-    parser.add_argument('--loss_alpha', type=float, default=5.99) # use
-    parser.add_argument('--loss_beta', type=float, default=92.89) # use
-    parser.add_argument('--loss_gamma', type=float, default=1.11) # use
+    parser.add_argument('--loss_alpha', type=float, default=0.4) # use
+    parser.add_argument('--loss_beta', type=float, default=30) # use
+    parser.add_argument('--loss_gamma', type=float, default=60) # use
     parser.add_argument('--checkpoint_name', type=str, default=None)
     parser.add_argument('--gpt2_checkpoint_name', type=str, default=None)
     parser.add_argument('--sample_rate', type=float, default=1)
 
     parser.add_argument('--pre_dyna', default=False, action='store_true', help='Pre-trained dynamic embeddings are used if set')
     parser.add_argument('--develop', default=False, action='store_true', help='If set to true, the short dataset is loaded')
+    parser.add_argument('--wandb_mode', type=str, default="offline", help='Wandb mode: offline/online')
     
     return parser
 

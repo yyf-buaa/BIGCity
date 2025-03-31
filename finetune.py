@@ -1,38 +1,28 @@
 import os
-import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
 import logging
 import traceback
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 import wandb
 
-import config.logging_config
-import config.random_seed
-from config.args_config import args
-from config.global_vars import device
+import torch
+from torch.utils.data import DataLoader
+from transformers import get_cosine_schedule_with_warmup
 
-from data_provider import file_loader
+from config.logging_config import init_logger, make_log_dir
+from config.args_config import args
+
+from data_provider.file_loader import file_loader
 from data_provider.data_loader import DatasetNextHop, DatasetTrajClassify, DatasetTimeReg, DatasetTrafficStateReg, DatasetTrajRecover
 
 from models.bigcity4finetune import BigCity4FineTune
 
 from utils.tools import EarlyStopping
-from utils.scheduler import CosineLRScheduler
 from utils.round_iterator import RoundRobinIterator
+from utils.plot_losses import save_loss_image, save_losses_to_csv
 
 
-datasets = {
-    "next_hop": DatasetNextHop(),
-    "traj_classify": DatasetTrajClassify(),
-    "time_reg": DatasetTimeReg(),
-    "traffic_state_reg": DatasetTrafficStateReg(),
-    "traj_recover": DatasetTrajRecover(),
-}
-
-total_losses = {
+losses = {
     "next_hop": [],
     "traj_classify": [],
     "time_reg": [],
@@ -40,30 +30,38 @@ total_losses = {
     "traj_recover": []
 }
 
-dataloaders = {
-    name: DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    for name, dataset in datasets.items()
-}
-bigcity = BigCity4FineTune()
 
-early_stopping = EarlyStopping(patience=args.patience, verbose=True)
-optimizer = torch.optim.Adam(bigcity.parameters(), lr=args.learning_rate, weight_decay=args.weight)
-lr_scheduler = CosineLRScheduler(
-    optimizer, args.train_epochs, lr_min=0, decay_rate=0.1,
-    warmup_t=40, warmup_lr_init=args.learning_rate / 20, t_in_epochs=True)
+def train(device):
+    file_loader.load_all()
+    
+    datasets = {
+        "next_hop": DatasetNextHop(),
+        "traj_classify": DatasetTrajClassify(),
+        "time_reg": DatasetTimeReg(),
+        "traffic_state_reg": DatasetTrafficStateReg(),
+        "traj_recover": DatasetTrajRecover(),
+    }
+    
+    dataloaders = {
+        name: DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+        for name, dataset in datasets.items()
+    }
+    
+    bigcity = BigCity4FineTune(device).to(device)
+    
+    optimizer = torch.optim.Adam(bigcity.parameters(), lr=args.learning_rate, weight_decay=args.weight)
 
-
-def train():
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer, 
+        num_warmup_steps=int(args.train_epochs * 0.1), 
+        num_training_steps=args.train_epochs
+    )
+    
+    early_stopping = EarlyStopping("finetune", patience=args.patience, verbose=True)
+    
+    data_loader_len = file_loader.get_traj_cnt()
     for epoch in range(1, args.train_epochs + 1):
         iterator = RoundRobinIterator(dataloaders)
-        
-        epoch_losses = {
-            "next_hop": [],
-            "traj_classify": [],
-            "time_reg": [],
-            "traffic_state_reg": [],
-            "traj_recover": []
-        }
         
         progress_bar = tqdm(
             enumerate(iterator), 
@@ -86,8 +84,7 @@ def train():
             )
             
             # Record loss
-            epoch_losses[task_name].append(loss.item())
-            total_losses[task_name].append(loss.item())
+            losses[task_name].append(loss.item())
             
             # Log losses to wandb
             wandb.log({
@@ -101,31 +98,36 @@ def train():
             optimizer.step()
         
         # Calculate average training loss for this epoch
-        average_losses = {f"{task_name}_epoch_average_loss": np.average(task_losses) 
-                          for task_name, task_losses in epoch_losses.items()}
+        average_losses = {f"{task_name}_epoch_average_loss": np.mean(task_losses[-data_loader_len:]) 
+                          for task_name, task_losses in losses.items()}
+        average_losses["learning_rate"] = optimizer.param_groups[0]['lr']
         logging.info(average_losses)
         wandb.log(average_losses)
         
-        # Save checkpoint
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': bigcity.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss }
-            , os.path.join(args.checkpoints, f'{args.city}_finetune_checkpoint{epoch}.pth'))
-        
         # Step the learning rate scheduler
-        lr_scheduler.step(epoch)
+        early_stopping.save_checkpoint(bigcity, optimizer, epoch, f"{epoch}")
+        scheduler.step(epoch)
 
 def main():
-    wandb.init(mode="online", project="bigcity", config=args, name="pretrain")
-
+    project_name = "bigcity-dev" if args.develop else "bigcity"
+    wandb.init(mode=args.wandb_mode, project=project_name, config=args, name="finetune")
+    
+    log_dir = make_log_dir(args.log_path)
+    init_logger(log_dir)
+    
+    device = torch.device("cpu" if args.device == "-1" and torch.cuda.is_available() else f"cuda:{args.device}")
+    logging.info(f"Using device: {device}")
+    
     try:
-        train()
+        train(device)
     except KeyboardInterrupt:
-        logging.info("\nTraining interrupted by user.")
+        logging.info("Training interrupted by user.")
     finally:
-        logging.info(f"total_losses: {total_losses}")
+        logging.info(f"Saving losses to {log_dir}.")
+        save_loss_image(losses, log_dir)
+        save_losses_to_csv(losses, log_dir)
+        
+        logging.info(f"Finishing training.")
         
     wandb.finish()
 

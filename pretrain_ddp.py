@@ -48,7 +48,7 @@ def train(rank, world_size, device_ids, log_dir):
     
     if rank == 0:
         project_name = "bigcity-dev" if args.develop else "bigcity"
-        wandb.init(mode="offline", project=project_name, config=args, name="pretrain")
+        wandb.init(mode=args.wandb_mode, project=project_name, config=args, name="pretrain")
     
     init_logger(log_dir)
     
@@ -74,112 +74,106 @@ def train(rank, world_size, device_ids, log_dir):
         num_training_steps=args.train_epochs
     )
     
-    early_stopping = EarlyStopping(patience=args.patience, verbose=True)
+    early_stopping = EarlyStopping("pretrain", patience=args.patience, verbose=True)
     
     
     data_loader_len = len(data_loader)
-    for epoch in range(1, args.train_epochs + 1):
-        
-        progress_bar = tqdm(enumerate(data_loader), 
-                            total=len(data_loader), 
-                            desc=f"Rank {rank} - Epoch {epoch}/{args.train_epochs}", 
-                            unit="batch",
-                            disable=(rank != 0),
-        )
-        
-        for batchidx, batch in progress_bar:
-            batch_road_id, batch_time_id, batch_time_features, batch_road_flow = batch
+    try:
+        for epoch in range(1, args.train_epochs + 1):
             
-            # Move data to GPU
-            batch_road_id = batch_road_id.to(device)
-            batch_time_id = batch_time_id.to(device)
-            batch_time_features = batch_time_features.to(device)
-            batch_road_flow = batch_road_flow.to(device)
-            
-
-            B, L, N, Dtf = batch_road_id.shape[0], batch_road_id.shape[1], file_loader.get_road_cnt(), 6
-            
-            # Get mask
-            mask, num_mask = padding_mask(B, L)
-            mask = mask.to(device)
-            
-            # Forward pass
-            predict_road_id, predict_time_features, predict_road_flow = bigcity(
-                batch_road_id, batch_time_id, batch_time_features, mask, num_mask
+            progress_bar = tqdm(enumerate(data_loader), 
+                                total=len(data_loader), 
+                                desc=f"Rank {rank} - Epoch {epoch}/{args.train_epochs}", 
+                                unit="batch",
+                                disable=(rank != 0),
             )
             
-            # Get masked real values
-            real_road_id = batch_road_id[mask == 0]
-            real_time_features = batch_time_features[mask == 0]
-            real_road_flow = batch_road_flow[mask == 0]
+            for batchidx, batch in progress_bar:
+                batch_road_id, batch_time_id, batch_time_features, batch_road_flow = batch
+                
+                # Move data to GPU
+                batch_road_id = batch_road_id.to(device)
+                batch_time_id = batch_time_id.to(device)
+                batch_time_features = batch_time_features.to(device)
+                batch_road_flow = batch_road_flow.to(device)
+                
 
-            # Calculate individual losses
-            road_id_loss = cross_entropy(predict_road_id.view(-1, N), real_road_id)
-            time_features_loss = mse(predict_time_features.view(-1, Dtf), real_time_features)
-            road_flow_loss = mse(predict_road_flow.view(-1), real_road_flow)
+                B, L, N, Dtf = batch_road_id.shape[0], batch_road_id.shape[1], file_loader.get_road_cnt(), 6
+                
+                # Get mask
+                mask, num_mask = padding_mask(B, L)
+                mask = mask.to(device)
+                
+                # Forward pass
+                predict_road_id, predict_time_features, predict_road_flow = bigcity(
+                    batch_road_id, batch_time_id, batch_time_features, mask, num_mask
+                )
+                
+                # Get masked real values
+                real_road_id = batch_road_id[mask == 0]
+                real_time_features = batch_time_features[mask == 0]
+                real_road_flow = batch_road_flow[mask == 0]
+
+                # Calculate individual losses
+                road_id_loss = cross_entropy(predict_road_id.view(-1, N), real_road_id)
+                time_features_loss = mse(predict_time_features.view(-1, Dtf), real_time_features)
+                road_flow_loss = mse(predict_road_flow.view(-1), real_road_flow)
+                
+                # Calculate total loss with scaling factors
+                loss = road_id_loss * args.loss_alpha + time_features_loss * args.loss_beta + road_flow_loss * args.loss_gamma
+                
+                # Record the losses for each component
+                losses["total"].append(loss.item())
+                losses["road_id"].append(road_id_loss.item())
+                losses["time_features"].append(time_features_loss.item())
+                losses["road_flow"].append(road_flow_loss.item())
+                            
+                # Backpropagation
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                
+                progress_bar.set_postfix({"loss": f"{loss.item():.2f}"}) 
+                
+                # Log losses to wandb
+                if rank == 0:
+                    wandb.log({
+                        "batch": batchidx,
+                        "batch_total_loss": loss.item(),
+                        "batch_road_id_loss": road_id_loss.item(),
+                        "batch_time_features_loss": time_features_loss.item(),
+                        "batch_road_flow_loss": road_flow_loss.item(),
+                    })                        
+
+            # Calculate average training loss for this epoch
+            epoch_loss_ave = np.mean(losses["total"][-data_loader_len:])
+            epoch_road_id_loss_ave = np.mean(losses["road_id"][-data_loader_len:])
+            epoch_time_features_loss_ave = np.mean(losses["time_features"][-data_loader_len:])
+            epoch_road_flow_loss_ave = np.mean(losses["road_flow"][-data_loader_len:])
             
-            # Calculate total loss with scaling factors
-            loss = road_id_loss * args.loss_alpha + time_features_loss * args.loss_beta + road_flow_loss * args.loss_gamma
-            
-            # Record the losses for each component
-            losses["total"].append(loss.item())
-            losses["road_id"].append(road_id_loss.item())
-            losses["time_features"].append(time_features_loss.item())
-            losses["road_flow"].append(road_flow_loss.item())
-                        
-            # Backpropagation
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            
-            progress_bar.set_postfix({"loss": f"{loss.item():.2f}"}) 
-            
-            # Log losses to wandb
             if rank == 0:
+                # Log average losses to wandb
                 wandb.log({
-                    "batch": batchidx,
-                    "batch_total_loss": loss.item(),
-                    "batch_road_id_loss": road_id_loss.item(),
-                    "batch_time_features_loss": time_features_loss.item(),
-                    "batch_road_flow_loss": road_flow_loss.item(),
-                })                        
-
-        # Calculate average training loss for this epoch
-        epoch_loss_ave = np.mean(losses["total"][-data_loader_len:])
-        epoch_road_id_loss_ave = np.mean(losses["road_id"][-data_loader_len:])
-        epoch_time_features_loss_ave = np.mean(losses["time_features"][-data_loader_len:])
-        epoch_road_flow_loss_ave = np.mean(losses["road_flow"][-data_loader_len:])
-        
+                    "epoch_average_total_loss": epoch_loss_ave,
+                    "epoch_average_road_id_loss": epoch_road_id_loss_ave,
+                    "epoch_average_time_features_loss": epoch_time_features_loss_ave,
+                    "epoch_average_road_flow_loss": epoch_road_flow_loss_ave,
+                    "learning_rate": optimizer.param_groups[0]['lr']
+                })
+                
+                early_stopping(epoch_loss_ave, bigcity, optimizer, epoch)
+                
+            scheduler.step()
+    
+    finally:
         if rank == 0:
-            # Log average losses to wandb
-            wandb.log({
-                "epoch_average_total_loss": epoch_loss_ave,
-                "epoch_average_road_id_loss": epoch_road_id_loss_ave,
-                "epoch_average_time_features_loss": epoch_time_features_loss_ave,
-                "epoch_average_road_flow_loss": epoch_road_flow_loss_ave,
-                "learning_rate": optimizer.param_groups[0]['lr']
-            })
+            logging.info(f"Saving losses to {log_dir}.")
+            save_loss_image(losses, log_dir)
+            save_losses_to_csv(losses, log_dir)
             
-            # Save checkpoint & loss plot
-            if epoch % 5 == 0:
-                torch.save({
-                    'epoch': epoch,
-                    'model_state_dict': bigcity.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': loss }, os.path.join(args.checkpoint_path, f'{args.city}_pretrain_checkpoint{epoch}.pth'))
-
-        # Early stopping and lr scheduler step
-        early_stopping(epoch_loss_ave, bigcity, args.checkpoint_path)
-        scheduler.step()
-    
-    if rank == 0:
-        logging.info(f"Saving losses to {log_dir}.")
-        save_loss_image(losses, log_dir)
-        save_losses_to_csv(losses, log_dir)
+            wandb.finish()
         
-        wandb.finish()
-    
-    cleanup_ddp()
+        cleanup_ddp()
 
 def main():
     log_dir = make_log_dir(args.log_path, args.checkpoint_path)
@@ -199,7 +193,7 @@ def main():
             mp.spawn(train, args=(world_size, device_ids, log_dir), nprocs=world_size, join=True)
     
     except KeyboardInterrupt:
-        logging.info("\nTraining interrupted by user.")
+        logging.info("Training interrupted by user.")
     
     finally:
         logging.info(f"Finishing training.")

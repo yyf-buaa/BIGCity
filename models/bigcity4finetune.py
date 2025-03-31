@@ -1,11 +1,9 @@
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
 
 from transformers import GPT2Tokenizer
 
 from config.args_config import args
-from config.global_vars import device
 
 from models.st_tokenizer import StTokenizer
 from models.backbone import Backbone
@@ -20,10 +18,10 @@ TRAJ_RECOVER_PROMPT = "Recover the vacant road segments in the trajectory, gener
 
             
 class BigCity4FineTune(BigCity):
-    def __init__(self):
-        super(BigCity4FineTune, self).__init__()
+    def __init__(self, device):
+        super(BigCity4FineTune, self).__init__(device)
         
-        checkpoint = torch.load(f"./checkpoints/{args.city}_pretrain_checkpoint.pth", weights_only=True)
+        checkpoint = torch.load(f"./checkpoints/{args.city}_pretrain_best.pth", weights_only=True)
         self.load_state_dict(checkpoint, strict=False)
         
         for name, param in self.tokenizer.named_parameters():
@@ -41,10 +39,10 @@ class BigCity4FineTune(BigCity):
         self.cross_entropy = nn.CrossEntropyLoss()
         
     def encode_prompt(self, prompt, special_token_id):
-        encoded_prompt = self.prompt_tokenizer.encode(prompt, return_tensors="pt").to(device)
+        encoded_prompt = self.prompt_tokenizer.encode(prompt, return_tensors="pt").to(self.device)
         prompt_embedding = self.backbone.gpt2.wte(encoded_prompt)
         
-        special_token = self.special_token(torch.tensor([special_token_id]).to(device)).unsqueeze(1)
+        special_token = self.special_token(torch.tensor([special_token_id]).to(self.device)).unsqueeze(1)
         
         prompt_with_special_token = torch.cat([prompt_embedding, special_token], dim=1)
         
@@ -57,7 +55,7 @@ class BigCity4FineTune(BigCity):
         Dtf = 6
 
         if task_name == "next_hop":
-            clas_token = self.special_token(torch.tensor([0]).to(device)).expand(B, 1, D)
+            clas_token = self.special_token(torch.tensor([0]).to(self.device)).expand(B, 1, D)
             batch_psm_tokens = torch.cat([self.NEXT_HOP_PROMPT.expand(B, -1, -1), batch_tokens, clas_token], dim=1) # L = 18 + L + 1
             
             next_hop_road_clas_output = self.backbone(batch_psm_tokens, ["road_clas"])["road_clas"] 
@@ -68,7 +66,7 @@ class BigCity4FineTune(BigCity):
             return next_hop_loss
         
         elif task_name == "traj_classify":
-            clas_token = self.special_token(torch.tensor([0]).to(device)).expand(B, 1, D)
+            clas_token = self.special_token(torch.tensor([0]).to(self.device)).expand(B, 1, D)
             batch_psm_tokens = torch.cat([self.TRAJ_CLASSIFY_PROMPT.expand(B, -1, -1), batch_tokens, clas_token], dim=1) # L = 16 + L + 1
             
             tul_clas_output = self.backbone(batch_psm_tokens, ["tul_clas"])["tul_clas"]
@@ -79,7 +77,7 @@ class BigCity4FineTune(BigCity):
             return traj_classify_loss
         
         elif task_name == "time_reg":
-            reg_token = self.special_token(torch.tensor([1]).to(device)).expand(B, L, D)
+            reg_token = self.special_token(torch.tensor([1]).to(self.device)).expand(B, L, D)
             batch_psm_tokens = torch.cat([self.TIME_REGRESS_PROMPT.expand(B, -1, -1), batch_tokens, reg_token], dim=1) # L = 16 + L + L
             
             time_reg_output= self.backbone(batch_psm_tokens, ["time_reg"])["time_reg"]
@@ -90,7 +88,7 @@ class BigCity4FineTune(BigCity):
             return time_features_loss
             
         elif task_name == "traffic_state_reg":
-            reg_token = self.special_token(torch.tensor([1]).to(device)).expand(B, L, D)
+            reg_token = self.special_token(torch.tensor([1]).to(self.device)).expand(B, L, D)
             batch_psm_tokens = torch.cat([self.TRAFFIC_STATE_REGRESS_PROMPT.expand(B, -1, -1), batch_tokens, reg_token], dim=1) # L = 17 + L + L
 
             traffic_state_reg_output = self.backbone(batch_psm_tokens, ["state_reg"])["state_reg"]
@@ -103,7 +101,7 @@ class BigCity4FineTune(BigCity):
         elif task_name == "traj_recover":
             num_mask_per_seq = int(args.mask_rate * L)
             
-            clas_token = self.special_token(torch.tensor([0]).to(device)).expand(B, num_mask_per_seq, D)
+            clas_token = self.special_token(torch.tensor([0]).to(self.device)).expand(B, num_mask_per_seq, D)
             batch_psm_tokens = torch.cat([self.TRAJ_RECOVER_PROMPT.expand(B, -1, -1), batch_tokens, clas_token], dim=1) # L = 19 + L + num_mask_per_seq
 
             traj_recover_road_clas_output = self.backbone(batch_psm_tokens, ["road_clas"])["road_clas"]

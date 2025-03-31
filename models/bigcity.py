@@ -12,12 +12,12 @@ class BigCity(nn.Module):
         
         self.device = device
         
-        self.tokenizer = StTokenizer(device)
+        self.tokenizer = StTokenizer(device).to(device)
         
         # 0: clas; 1: reg
-        self.special_token = nn.Embedding(num_embeddings=2, embedding_dim=args.d_model)
+        self.special_token = nn.Embedding(num_embeddings=2, embedding_dim=args.d_model).to(device)
                 
-        self.backbone = Backbone(device)
+        self.backbone = Backbone(device).to(device)
         
  
     def forward(self, batch_road_id, batch_time_id, batch_time_features, mask, num_mask):

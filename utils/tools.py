@@ -1,6 +1,7 @@
 import numpy as np
 import torch, logging
 import matplotlib.pyplot as plt
+import os
 from config.args_config import args
 plt.switch_backend('agg')
 
@@ -39,40 +40,47 @@ def get_learning_rate(optimizer):
 
 
 class EarlyStopping:
-    def __init__(self, patience=7, verbose=False, delta=0):
+    def __init__(self, task_name, patience=7, verbose=False, delta=0):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.adj_lr = False
         self.val_loss_min = np.inf
         self.delta = delta
+        self.task_name = task_name
 
-    def __call__(self, val_loss, model, path):
+    def __call__(self, val_loss, model, optimizer, epoch):
+        if epoch % 5 == 0:
+            self.save_checkpoint(model, optimizer, epoch, f'{epoch}')
+        if epoch == args.train_epochs:
+            self.save_checkpoint(model, optimizer, epoch, 'final')
+        
         score = -val_loss
         if self.best_score is None:
             self.best_score = score
-            self.save_checkpoint(val_loss, model, path)
+            self.save_checkpoint(model, optimizer, epoch, "best", val_loss)
             self.adj_lr = False
         elif score < self.best_score + self.delta:
             self.counter += 1
-            logging.info(f'EarlyStopping counter: {self.counter} out of {self.patience}')
-            self.adj_lr = True
+            logging.info(f'EarlyStopping counter: {self.counter} out of {self.patience}, loss: {val_loss:.6f}')
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
             self.best_score = score
-            self.save_checkpoint(val_loss, model, path)
+            self.save_checkpoint(model, optimizer, epoch, "best", val_loss)
             self.counter = 0
-            self.adj_lr = False
             self.early_stop = False
-
-    def save_checkpoint(self, val_loss, model, path):
-        if self.verbose:
+            
+    def save_checkpoint(self, model, optimizer, epoch, name, val_loss=None):
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+        }, os.path.join(args.checkpoint_path, f'{args.city}_{self.task_name}_{name}.pth'))
+        if val_loss is not None:
             logging.info(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
-        torch.save(model.state_dict(), path + '/' + f'{args.city}_pretrain_checkpoint.pth')
-        self.val_loss_min = val_loss
+            self.val_loss_min = val_loss
 
 
 class dotdict(dict):

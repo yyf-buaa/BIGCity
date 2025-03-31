@@ -32,7 +32,7 @@ losses = {
 
 
 def train(device):
-    file_loader.load_all(0)
+    file_loader.load_all()
     dataset = DatasetTraj()
     data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     
@@ -48,11 +48,9 @@ def train(device):
         num_training_steps=args.train_epochs
     )
     
-    early_stopping = EarlyStopping(patience=args.patience, verbose=True)
+    early_stopping = EarlyStopping("pretrain", patience=args.patience, verbose=True)
     
     data_loader_len = len(data_loader)
-    
-    
     for epoch in range(1, args.train_epochs + 1):
         
         progress_bar = tqdm(enumerate(data_loader), 
@@ -130,21 +128,14 @@ def train(device):
             "epoch_average_road_flow_loss": epoch_road_flow_loss_ave,
             "learning_rate": optimizer.param_groups[0]['lr']
         })
-        
-        # Save checkpoint & loss plot
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': bigcity.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss }, os.path.join(args.checkpoint_path, f'{args.city}_pretrain_checkpoint{epoch}.pth'))
 
         # Early stopping and lr scheduler step
-        early_stopping(epoch_loss_ave, bigcity, args.checkpoint_path)
+        early_stopping(epoch_loss_ave, bigcity, optimizer, epoch)
         scheduler.step()
 
 def main():
     project_name = "bigcity-dev" if args.develop else "bigcity"
-    wandb.init(mode="offline", project=project_name, config=args, name="pretrain")
+    wandb.init(mode=args.wandb_mode, project=project_name, config=args, name="pretrain")
     
     log_dir = make_log_dir(args.log_path)
     init_logger(log_dir)
