@@ -24,7 +24,6 @@ class DatasetTraj(Dataset):
         self.traj_road_id_lists = None
         self.traj_time_id_lists = None
         self.traj_time_features_lists = None
-        self.traj_road_flow = None
         
         if os.path.exists(global_vars.cached_traj_dataset):
             self.load_cached_traj_data()
@@ -37,7 +36,7 @@ class DatasetTraj(Dataset):
                 f"Shape of traj_road_id_lists: {self.traj_road_id_lists.shape}, \n"
                 f"Shape of traj_time_id_lists: {self.traj_time_id_lists.shape}, \n"
                 f"Shape of traj_time_features_lists: {self.traj_time_features_lists.shape}, \n"
-                f"Shape of traj_road_flow: {self.traj_road_flow.shape} \n")
+        )
         
         logging.info("Finish loading trajectory dataset.")
     
@@ -61,7 +60,7 @@ class DatasetTraj(Dataset):
         self.traj_time_features_lists = torch.reshape(data_stamp, (self.dataset_len, args.seq_len, data_stamp.shape[-1]))
         logging.info("(DatasetTraj) Finish reading time features.")
         
-        self.traj_road_flow = file_loader.dynamic_features[self.traj_road_id_lists, self.traj_time_id_lists]
+        # self.traj_road_flow = file_loader.dynamic_features[self.traj_road_id_lists, self.traj_time_id_lists]
         # self.traj_road_flow = self.traj_road_flow - self.traj_road_flow[:, 0:1]
         logging.info("(DatasetTraj) Finish reading road flow.")
     
@@ -71,7 +70,6 @@ class DatasetTraj(Dataset):
             'traj_road_id_lists': self.traj_road_id_lists,
             'traj_time_id_lists': self.traj_time_id_lists,
             'traj_time_features_lists': self.traj_time_features_lists,
-            'traj_road_flow': self.traj_road_flow
         }, global_vars.cached_traj_dataset)
         
     def load_cached_traj_data(self):
@@ -80,13 +78,11 @@ class DatasetTraj(Dataset):
         self.traj_road_id_lists = cached_data['traj_road_id_lists']
         self.traj_time_id_lists = cached_data['traj_time_id_lists']
         self.traj_time_features_lists = cached_data['traj_time_features_lists']
-        self.traj_road_flow = cached_data['traj_road_flow']
         
     def __getitem__(self, index):
         return (self.traj_road_id_lists[index],
                 self.traj_time_id_lists[index],  
-                self.traj_time_features_lists[index],
-                self.traj_road_flow[index])
+                self.traj_time_features_lists[index],)
             
     def __len__(self):
         return self.dataset_len
@@ -122,11 +118,11 @@ class DatasetNextHop(Dataset):
     def read_traj_data(self):
         traj_data = file_loader.get_traj_data()
         
-        self.traj_road_id_lists = torch.tensor([ x[:args.seq_len - 1] + x[args.seq_len - 2] if len(x) > args.seq_len else x[:-1] + [x[-2]] * (args.seq_len - len(x) + 1) 
+        self.traj_road_id_lists = torch.tensor([ x[:args.seq_len - 1] + [x[args.seq_len - 2]] if len(x) > args.seq_len else x[:-1] + [x[-2]] * (args.seq_len - len(x) + 1) 
                             for x in traj_data["path"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
         logging.info("(DatasetNextHop) Finish reading road id.")
         
-        self.traj_time_lists = torch.tensor([ x[:args.seq_len - 1] + x[args.seq_len - 2] if len(x) > args.seq_len else x[:-1] + [x[-2]] * (args.seq_len - len(x) + 1) 
+        self.traj_time_lists = torch.tensor([ x[:args.seq_len - 1] + [x[args.seq_len - 2]] if len(x) > args.seq_len else x[:-1] + [x[-2]] * (args.seq_len - len(x) + 1) 
                             for x in traj_data["tlist"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
         self.traj_time_id_lists = ((self.traj_time_lists - torch.tensor(global_vars.start_time.timestamp())) // global_vars.interval).to(torch.int32)
         logging.info("(DatasetNextHop) Finish reading time id.")
@@ -211,6 +207,12 @@ class DatasetTrajClassify(Dataset):
         data_stamp = torch.from_numpy(data_stamp)
         self.traj_time_features_lists = torch.reshape(data_stamp, (self.dataset_len, args.seq_len, data_stamp.shape[-1]))
         logging.info("(DatasetTrajClassify) Finish reading time features.")
+        
+        # - # - # bj dataset
+        unique_labels = sorted(set(traj_data["usr_id"]))
+        label_mapping = {old_label: new_label for new_label, old_label in enumerate(unique_labels)}
+        traj_data["usr_id"] = traj_data["usr_id"].map(label_mapping)
+        # - # - #
         
         self.classify_labels = torch.tensor(traj_data["usr_id"], dtype=torch.int64)
         logging.info("(DatasetTrajClassify) Finish reading classify label.")

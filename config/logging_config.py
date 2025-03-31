@@ -3,11 +3,12 @@ import os
 from datetime import datetime
 import torch.distributed as dist
 
+from config.args_config import args
 
-def make_log_dir(log_dir="./log", checkpoints_dir="./checkpoints"):
+def make_log_dir(log_dir=args.log_path, checkpoints_dir=args.checkpoint_path):
     
     if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+        os.makedirs(log_dir)
             
     if not os.path.exists(checkpoints_dir):
         os.makedirs(checkpoints_dir)

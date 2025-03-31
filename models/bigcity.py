@@ -37,12 +37,12 @@ class BigCity(nn.Module):
         batch_psm_tokens = torch.cat([mask_batch_tokens, special_tokens], dim=1) # (B, L + 2*num_mask, D)
         
         # backbone
-        output = self.backbone(batch_psm_tokens, ["road_clas", "time_reg", "state_reg"])
-        clas_output, time_output, reg_output = output["road_clas"], output["time_reg"], output["state_reg"]
+        output = self.backbone(batch_psm_tokens, ["road_clas", "time_reg"])
+        clas_output, time_output = output["road_clas"], output["time_reg"]
         
         # get output special tokens
         clas_indices = torch.arange(-2 * num_mask, 0, 2).to(self.device)
         reg_indices = torch.arange(-2 * num_mask + 1, 1, 2).to(self.device)
         
-        return clas_output[:, clas_indices, :], time_output[:, reg_indices, :], reg_output[:, reg_indices, :]
+        return clas_output[:, clas_indices, :], time_output[:, reg_indices, :]
         

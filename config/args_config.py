@@ -16,7 +16,7 @@ def get_args_parser():
     parser.add_argument('--dataset_path', type=str, default='../dataset/', help='root path of the data file') # use
     parser.add_argument('--city', type=str, default='xa', help='city of the dataset') # use
     parser.add_argument('--embedding_model',type=str,default='HHGCLV3',help='road_embedding_model')
-    parser.add_argument('--seq_len',type=int,default=64,help='trak sequence len') # use
+    parser.add_argument('--seq_len',type=int,default=128,help='trak sequence len') # use
 
     parser.add_argument('--freq', type=str, default='s',
                         help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
@@ -83,6 +83,7 @@ def get_args_parser():
     parser.add_argument('--pre_dyna', default=False, action='store_true', help='Pre-trained dynamic embeddings are used if set')
     parser.add_argument('--develop', default=False, action='store_true', help='If set to true, the short dataset is loaded')
     parser.add_argument('--wandb_mode', type=str, default="offline", help='Wandb mode: offline/online')
+    parser.add_argument('--no_traffic_state', default=False, action='store_true', help='no traffic state (bj or other dataset)')
     
     return parser
 
