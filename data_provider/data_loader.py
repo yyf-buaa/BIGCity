@@ -122,11 +122,11 @@ class DatasetNextHop(Dataset):
     def read_traj_data(self):
         traj_data = file_loader.get_traj_data()
         
-        self.traj_road_id_lists = torch.tensor([ x[:args.seq_len - 1] + x[args.seq_len - 2] if len(x) > args.seq_len else x[:-1] + [x[-2]] * (args.seq_len - len(x) + 1) 
+        self.traj_road_id_lists = torch.tensor([ x[:args.seq_len - 1] + [x[args.seq_len - 2]] if len(x) > args.seq_len else x[:-1] + [x[-2]] * (args.seq_len - len(x) + 1) 
                             for x in traj_data["path"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
         logging.info("(DatasetNextHop) Finish reading road id.")
         
-        self.traj_time_lists = torch.tensor([ x[:args.seq_len - 1] + x[args.seq_len - 2] if len(x) > args.seq_len else x[:-1] + [x[-2]] * (args.seq_len - len(x) + 1) 
+        self.traj_time_lists = torch.tensor([ x[:args.seq_len - 1] + [x[args.seq_len - 2]] if len(x) > args.seq_len else x[:-1] + [x[-2]] * (args.seq_len - len(x) + 1) 
                             for x in traj_data["tlist"].apply(lambda x: literal_eval(x))], dtype=torch.int64)
         self.traj_time_id_lists = ((self.traj_time_lists - torch.tensor(global_vars.start_time.timestamp())) // global_vars.interval).to(torch.int32)
         logging.info("(DatasetNextHop) Finish reading time id.")

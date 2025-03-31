@@ -110,7 +110,7 @@ def train(device):
 
 def main():
     project_name = "bigcity-dev" if args.develop else "bigcity"
-    wandb.init(mode=args.wandb_mode, project=project_name, config=args, name="finetune")
+    wandb.init(mode=args.wandb_mode, project=project_name, config=args, name=f"finetune-{args.city}")
     
     log_dir = make_log_dir(args.log_path)
     init_logger(log_dir)

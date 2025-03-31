@@ -48,7 +48,7 @@ def train(rank, world_size, device_ids, log_dir):
     
     if rank == 0:
         project_name = "bigcity-dev" if args.develop else "bigcity"
-        wandb.init(mode=args.wandb_mode, project=project_name, config=args, name="pretrain")
+        wandb.init(mode=args.wandb_mode, project=project_name, config=args, name=f"pretrain-{args.city}")
     
     init_logger(log_dir)
     
