@@ -43,12 +43,12 @@ def main():
     file_loader.load_all()
     
     dataset_classes = [
-        # DatasetTraj,
+        DatasetTraj,
         DatasetNextHop,
-        # DatasetTrajClassify,
-        # DatasetTimeReg,
+        DatasetTrajClassify,
+        DatasetTimeReg,
         # DatasetTrafficStateReg,
-        # DatasetTrajRecover,
+        DatasetTrajRecover,
     ]
     
     print(len(dataset_classes))
