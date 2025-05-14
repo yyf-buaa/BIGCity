@@ -22,7 +22,7 @@ class BigCity4FineTune(BigCity):
         super(BigCity4FineTune, self).__init__(device)
         
         checkpoint = torch.load(f"./checkpoints/{args.city}_pretrain_best.pth", weights_only=True)
-        self.load_state_dict(checkpoint, strict=False)
+        self.load_state_dict(checkpoint["model_state_dict"], strict=False)
         
         for name, param in self.tokenizer.named_parameters():
             param.requires_grad = False
