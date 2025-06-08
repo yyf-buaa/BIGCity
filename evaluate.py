@@ -136,7 +136,7 @@ def evaluate(device):
     
     dataloaders = {
         name: DataLoader(dataset, batch_size=1, shuffle=True)
-        for name, dataset in datasets.items()
+        for name, dataset in test_datasets.items()
     }
     
     eval_funcs = {
