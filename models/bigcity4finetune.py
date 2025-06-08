@@ -22,7 +22,6 @@ class BigCity4FineTune(BigCity):
         super(BigCity4FineTune, self).__init__(device)
         
         if checkpoint is None:
-            print(f"./checkpoints/{args.city}_pretrain_best.pth", "does not exist, using default checkpoint")
             checkpoint = torch.load(f"./checkpoints/{args.city}_pretrain_best.pth", weights_only=True)
         else:
             checkpoint = torch.load(checkpoint, weights_only=True)
