@@ -18,10 +18,14 @@ TRAJ_RECOVER_PROMPT = "Recover the vacant road segments in the trajectory, gener
 
             
 class BigCity4FineTune(BigCity):
-    def __init__(self, device):
+    def __init__(self, device, checkpoint=None):
         super(BigCity4FineTune, self).__init__(device)
         
-        checkpoint = torch.load(f"./checkpoints/{args.city}_pretrain_best.pth", weights_only=True)
+        if checkpoint is None:
+            print(f"./checkpoints/{args.city}_pretrain_best.pth", "does not exist, using default checkpoint")
+            checkpoint = torch.load(f"./checkpoints/{args.city}_pretrain_best.pth", weights_only=True)
+        else:
+            checkpoint = torch.load(checkpoint, weights_only=True)
         self.load_state_dict(checkpoint["model_state_dict"], strict=False)
         
         for name, param in self.tokenizer.named_parameters():
@@ -61,9 +65,11 @@ class BigCity4FineTune(BigCity):
             next_hop_road_clas_output = self.backbone(batch_psm_tokens, ["road_clas"])["road_clas"] 
             
             predict_road_id = next_hop_road_clas_output[:, -1, :] # (B, Nroad)
+            # print(predict_road_id.shape, batch_label.shape)
+            # print(predict_road_id[0,:10], batch_label[0])
             
             next_hop_loss = self.cross_entropy(predict_road_id, batch_label)
-            return next_hop_loss
+            return next_hop_loss, predict_road_id
         
         elif task_name == "traj_classify":
             clas_token = self.special_token(torch.tensor([0]).to(self.device)).expand(B, 1, D)
@@ -74,7 +80,7 @@ class BigCity4FineTune(BigCity):
             predict_classify_id = tul_clas_output[:, -1, :] # (B, Nclas)
                     
             traj_classify_loss = self.cross_entropy(predict_classify_id, batch_label)
-            return traj_classify_loss
+            return traj_classify_loss, predict_classify_id
         
         elif task_name == "time_reg":
             reg_token = self.special_token(torch.tensor([1]).to(self.device)).expand(B, L, D)
@@ -85,7 +91,7 @@ class BigCity4FineTune(BigCity):
             predict_time_features = time_reg_output[:, -L:, :] # (B, L, 6)
             
             time_features_loss = self.mse(predict_time_features, batch_label)
-            return time_features_loss
+            return time_features_loss, predict_time_features
             
         elif task_name == "traffic_state_reg":
             reg_token = self.special_token(torch.tensor([1]).to(self.device)).expand(B, L, D)
@@ -96,7 +102,7 @@ class BigCity4FineTune(BigCity):
             predict_traffic_states = traffic_state_reg_output[:, -L:, :] # (B, L, 1)
             
             traffic_state_loss = self.mse(predict_traffic_states.squeeze(2), batch_label) 
-            return traffic_state_loss
+            return traffic_state_loss, predict_traffic_states
         
         elif task_name == "traj_recover":
             num_mask_per_seq = int(args.mask_rate * L)
@@ -109,5 +115,5 @@ class BigCity4FineTune(BigCity):
             predict_road_id = traj_recover_road_clas_output[:, -num_mask_per_seq:, :]
             
             traj_recover_loss = self.cross_entropy(predict_road_id.reshape(-1, predict_road_id.shape[-1]), batch_label.view(-1))
-            return traj_recover_loss
+            return traj_recover_loss, predict_road_id
             

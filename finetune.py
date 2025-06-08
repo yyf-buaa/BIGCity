@@ -79,7 +79,7 @@ def train(device):
             batch_label = batch_label.to(device)
             
             # Forward pass (loss has been calculated)
-            loss = bigcity(
+            loss, _ = bigcity(
                 task_name, batch_road_id, batch_time_id, batch_time_features, batch_label
             )
             
